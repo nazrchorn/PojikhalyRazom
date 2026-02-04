@@ -88,3 +88,8 @@ dependencies:
 Створив базу даних для проекта а тестовому режимі без авторизації: 
 https://console.firebase.google.com/project/pojikhalyrazom/firestore/databases/-default-/data/~2Fmessages~2FLGmhZvTzPLRwWfQXRXhW
 Додав код в проект який записує месаджі з лічильником і датою.
+
+==============================
+2026.02.03 Sofa
+==============================
+test
