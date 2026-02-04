@@ -50,3 +50,41 @@ Firebase має власний безкоштовний план (Spark Plan):
 - Hosting: 1 ГБ зберігання + 10 ГБ трафіку.
 - Це дуже зручно для мобільних застосунків і MVP.
 
+Створив проект на Google Cloud: https://console.firebase.google.com/project/pojikhalyrazom/overview
+
+==============================
+2026.02.03 NAZR
+==============================
+Переглянув тренінг по Dart: https://docs.flutter.dev/learn/pathway
+https://docs.flutter.dev/learn/pathway/how-flutter-works
+
+ Додати Android додаток до Firebase:
+- У Firebase Console(https://console.firebase.google.com/project/pojikhalyrazom/overview) натисни Add app → Android.
+- Введи package name (дивись у android/app/build.gradle, рядок applicationId).
+- Завантаж файл google-services.json.
+- Поклади його у папку android/app/ твого Flutter проєкту.
+- У android/build.gradle додай:
+dependencies {
+    classpath 'com.google.gms:google-services:4.3.15'
+}
+- У android/app/build.gradle додай: apply plugin: 'com.google.gms.google-services'
+
+Приклади використання: https://firebase.google.com/docs/samples?authuser=0&_gl=1*t9nvsx*_ga*MjAzMjc4MzI3MS4xNzcwMDUyMzAw*_ga_CW55HF8NVT*czE3NzAxMjI2OTEkbzMkZzEkdDE3NzAxMjYyMTEkajYwJGwwJGgw
+
+
+Додати iOS додаток
+- У Firebase Console натисни Add app → iOS.
+- Введи Bundle ID (дивись у ios/Runner.xcodeproj → General → Bundle Identifier).
+- Завантаж файл GoogleService-Info.plist.
+- Додай його у папку ios/Runner/.
+
+Open your pubspec.yaml and make sure you have:
+dependencies:
+  flutter:
+    sdk: flutter
+  firebase_core: ^4.4.0   # use the latest stable version
+  cloud_firestore: ^6.1.2 # optional if you want Firestore
+
+Створив базу даних для проекта а тестовому режимі без авторизації: 
+https://console.firebase.google.com/project/pojikhalyrazom/firestore/databases/-default-/data/~2Fmessages~2FLGmhZvTzPLRwWfQXRXhW
+Додав код в проект який записує месаджі з лічильником і датою.
