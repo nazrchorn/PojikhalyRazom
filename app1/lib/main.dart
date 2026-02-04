@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'practice.dart';
 
-void main() {
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(); // обов’язково перед Firestore
   runApp(const MyStartupApp());
 }
 
@@ -25,15 +30,28 @@ class SearchScreen extends StatefulWidget {
 }
 
 class _SearchScreenState extends State<SearchScreen> {
-  // Контролери для зчитування тексту з полів
   final TextEditingController _fromController = TextEditingController();
   final TextEditingController _toController = TextEditingController();
 
-  // Тимчасовий список поїздок (імітація бази даних)
+  int _selectedIndex = 0;
+
+  // Тимчасовий список поїздок
   List<Map<String, String>> trips = [
     {'from': 'Київ', 'to': 'Львів', 'price': '400 грн', 'driver': 'Олексій', 'time': '12:00'},
     {'from': 'Київ', 'to': 'Одеса', 'price': '500 грн', 'driver': 'Марія', 'time': '14:30'},
   ];
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+    if (index == 1) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const RegistrationScreen()),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +61,6 @@ class _SearchScreenState extends State<SearchScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // Поле "Звідки"
             TextField(
               controller: _fromController,
               decoration: const InputDecoration(
@@ -52,7 +69,6 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
             const SizedBox(height: 10),
-            // Поле "Куди"
             TextField(
               controller: _toController,
               decoration: const InputDecoration(
@@ -61,10 +77,8 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            // Кнопка пошуку
             ElevatedButton(
               onPressed: () {
-                // Тут буде логіка запиту до вашого Backend
                 print('Шукаємо з ${_fromController.text} до ${_toController.text}');
               },
               style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
@@ -76,7 +90,6 @@ class _SearchScreenState extends State<SearchScreen> {
               child: Text('Доступні поїздки:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ),
             const SizedBox(height: 10),
-            // Список знайдених поїздок
             Expanded(
               child: ListView.builder(
                 itemCount: trips.length,
@@ -92,9 +105,6 @@ class _SearchScreenState extends State<SearchScreen> {
                         trips[index]['price']!,
                         style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16),
                       ),
-                      onTap: () {
-                        // Тут буде перехід на деталі поїздки
-                      },
                     ),
                   );
                 },
@@ -102,6 +112,20 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ],
         ),
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.search),
+            label: 'Пошук',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_add),
+            label: 'Реєстрація',
+          ),
+        ],
       ),
     );
   }
