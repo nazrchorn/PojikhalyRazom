@@ -93,3 +93,16 @@ https://console.firebase.google.com/project/pojikhalyrazom/firestore/databases/-
 2026.02.03 Sofa
 ==============================
 test
+
+==============================
+2026.02.04 Sofa
+==============================
+Створила файл practise.dart де описала основні класи Car, User, Location, Trip, Booking, Message, Rating, RegistrationScreen;
+Підключила до проекту Firebase.
+
+==============================
+2026.02.06 NAZR
+==============================
+Збілдив релізний білд для Андроїд і залив на гугл диск для зазального доступу:
+https://drive.google.com/file/d/1JrSRkwYmQgP7bh5aQF7clsGL_TPrgvrw/view?usp=drive_link
+Для білда реліза для Айфона треба макбук з IOS.
