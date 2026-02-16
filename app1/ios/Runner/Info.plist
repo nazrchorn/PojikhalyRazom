@@ -9,6 +9,10 @@
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
+	<key>NSPhotoLibraryUsageDescription</key>
+    <string>Додаток потребує доступу до фото для завантаження аватарки</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Додаток потребує доступу до камери для зйомки аватарки</string>
 	<string>com.example.pojikhalyrazom</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
