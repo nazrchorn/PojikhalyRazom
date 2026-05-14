@@ -77,12 +77,24 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             TextField(controller: _nameController, decoration: const InputDecoration(labelText: "Ім'я")),
             TextField(controller: _emailController, decoration: const InputDecoration(labelText: "Email")),
             TextField(controller: _phoneController, decoration: const InputDecoration(labelText: "Телефон")),
+
+            // ✅ Стать показуємо, але не редагуємо
+            const SizedBox(height: 20),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.wc),
+                title: Text(widget.user.gender == "female" ? "Жінка" : "Чоловік"),
+                subtitle: const Text("Стать (не редагується)"),
+              ),
+            ),
+
             const SizedBox(height: 20),
             const Text("Інформація про авто", style: TextStyle(fontWeight: FontWeight.bold)),
             TextField(controller: _carBrandController, decoration: const InputDecoration(labelText: "Марка")),
             TextField(controller: _carModelController, decoration: const InputDecoration(labelText: "Модель")),
             TextField(controller: _carYearController, decoration: const InputDecoration(labelText: "Рік"), keyboardType: TextInputType.number),
             TextField(controller: _carSeatsController, decoration: const InputDecoration(labelText: "Кількість місць"), keyboardType: TextInputType.number),
+
             const SizedBox(height: 30),
             ElevatedButton(
               onPressed: () async {
@@ -104,6 +116,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   car: car,
                   createdAt: widget.user.createdAt,
                   photoUrl: photoUrl,
+                  gender: widget.user.gender, // ✅ стать лишається незмінною
                 );
 
                 await FirebaseFirestore.instance.collection("users").doc(updatedUser.id).set(updatedUser.toMap());

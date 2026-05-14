@@ -11,6 +11,12 @@ class Trip {
   final double pricePerSeat;
   final List<String> passengers;
   final DateTime createdAt;
+  final List<Location> stops;
+
+  // ✅ нові фільтри
+  final bool allowChildren;
+  final bool allowPets;
+  final bool womenOnly;
 
   Trip({
     required this.id,
@@ -22,32 +28,57 @@ class Trip {
     required this.pricePerSeat,
     required this.passengers,
     required this.createdAt,
+    required this.stops,
+    this.allowChildren = true,
+    this.allowPets = false,
+    this.womenOnly = false,
   });
-
-  factory Trip.fromMap(String id, Map<String, dynamic> map) {
-    return Trip(
-      id: id,
-      driverId: map['driverId'],
-      origin: Location.fromMap(map['origin']),
-      destination: Location.fromMap(map['destination']),
-      departureTime: (map['departureTime'] as Timestamp).toDate(),
-      availableSeats: map['availableSeats'],
-      pricePerSeat: (map['pricePerSeat'] as num).toDouble(),
-      passengers: List<String>.from(map['passengers']),
-      createdAt: (map['createdAt'] as Timestamp).toDate(),
-    );
-  }
 
   Map<String, dynamic> toMap() {
     return {
       'driverId': driverId,
       'origin': origin.toMap(),
       'destination': destination.toMap(),
-      'departureTime': departureTime,
+      'departureTime': departureTime.toIso8601String(),
       'availableSeats': availableSeats,
       'pricePerSeat': pricePerSeat,
       'passengers': passengers,
-      'createdAt': createdAt,
+      'createdAt': createdAt.toIso8601String(),
+      'stops': stops.map((s) => s.toMap()).toList(),
+      'allowChildren': allowChildren,
+      'allowPets': allowPets,
+      'womenOnly': womenOnly,
     };
+  }
+
+  factory Trip.fromMap(Map<String, dynamic> map, String id) {
+    // Функція для безпечної конвертації дати
+    DateTime parseDate(dynamic date) {
+      if (date is Timestamp)
+        return date.toDate(); // Якщо це Timestamp (Firebase)
+      if (date is String) return DateTime.parse(date); // Якщо це String
+      return DateTime.now(); // Фолбек
+    }
+
+    return Trip(
+      id: id,
+      driverId: map['driverId'] ?? '',
+      origin: Location.fromMap(map['origin']),
+      destination: Location.fromMap(map['destination']),
+      departureTime: parseDate(map['departureTime']),
+      // ✅ Використовуємо нову функцію
+      availableSeats: map['availableSeats'] ?? 0,
+      pricePerSeat: (map['pricePerSeat'] as num?)?.toDouble() ?? 0.0,
+      passengers: List<String>.from(map['passengers'] ?? []),
+      createdAt: parseDate(map['createdAt']),
+      // ✅ Використовуємо нову функцію
+      stops: (map['stops'] as List<dynamic>?)
+          ?.map((s) => Location.fromMap(s))
+          .toList() ??
+          [],
+      allowChildren: map['allowChildren'] ?? true,
+      allowPets: map['allowPets'] ?? false,
+      womenOnly: map['womenOnly'] ?? false,
+    );
   }
 }

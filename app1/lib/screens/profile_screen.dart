@@ -20,29 +20,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
   User? currentUser;
 
   Future<void> _loadUser(String uid) async {
-    final doc = await FirebaseFirestore.instance.collection("users").doc(uid).get();
-    if (doc.exists) {
-      setState(() {
-        currentUser = User.fromMap(doc.id, doc.data()!);
-      });
+    try {
+      final doc = await FirebaseFirestore.instance.collection("users").doc(uid).get();
+      if (doc.exists) {
+        setState(() {
+          currentUser = User.fromMap(doc.id, doc.data()!);
+        });
+      }
+    } catch (e) {
+      debugPrint("Помилка доступу до Firestore: $e");
     }
   }
 
   Future<void> _pickAndUploadPhoto() async {
+    if (currentUser == null) {
+      debugPrint("User not loaded yet");
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Користувач ще не завантажений")),
+      );
+      return;
+    }
+
     try {
       final picker = ImagePicker();
       final pickedFile = await picker.pickImage(source: ImageSource.gallery);
       if (pickedFile != null) {
         final file = File(pickedFile.path);
 
-        final ref = FirebaseStorage.instance.ref().child("profile_photos/${currentUser!.id}.jpg");
-        await ref.putFile(file); // створює файл у Storage
+        final ref = FirebaseStorage.instance
+            .ref()
+            .child("profile_photos/${currentUser!.id}/avatar.jpg");
+
+        await ref.putFile(file);
         final url = await ref.getDownloadURL();
 
-        await FirebaseFirestore.instance.collection("users").doc(currentUser!.id).update({
+        await FirebaseFirestore.instance.collection("users").doc(currentUser!.id).set({
           "photoUrl": url,
-        });
+        }, SetOptions(merge: true));
 
+        if (!mounted) return;
         setState(() {
           currentUser = User(
             id: currentUser!.id,
@@ -53,11 +70,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
             car: currentUser!.car,
             createdAt: currentUser!.createdAt,
             photoUrl: url,
+            gender: currentUser!.gender, // ✅ зберігаємо стать
           );
         });
       }
     } catch (e) {
-      print("Помилка при завантаженні фото: $e");
+      debugPrint("Помилка при завантаженні фото: $e");
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Не вдалося завантажити фото")),
+      );
     }
   }
 
@@ -75,22 +97,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ElevatedButton(
                 child: const Text("Увійти"),
                 onPressed: () async {
-                  final user = await Navigator.push(
+                  final uid = await Navigator.push(
                     context,
                     MaterialPageRoute(builder: (context) => const LoginScreen()),
                   );
-                  if (user != null) setState(() => currentUser = user);
+                  if (uid != null) {
+                    await _loadUser(uid);
+                  }
                 },
               ),
               const SizedBox(height: 20),
               ElevatedButton(
                 child: const Text("Зареєструватися"),
                 onPressed: () async {
-                  final user = await Navigator.push(
+                  final uid = await Navigator.push(
                     context,
                     MaterialPageRoute(builder: (context) => const RegistrationScreen()),
                   );
-                  if (user != null) setState(() => currentUser = user);
+                  if (uid != null) {
+                    await _loadUser(uid);
+                  }
                 },
               ),
             ],
@@ -137,7 +163,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   radius: 50,
                   backgroundImage: currentUser!.photoUrl != null
                       ? NetworkImage(currentUser!.photoUrl!)
-                      : const AssetImage("assets/default_avatar.png"),
+                      : const AssetImage("assets/default_avatar.png") as ImageProvider,
                 ),
               ),
               const SizedBox(height: 20),
@@ -160,6 +186,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   leading: const Icon(Icons.phone),
                   title: Text(currentUser!.phone),
                   subtitle: const Text("Телефон"),
+                ),
+              ),
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.wc),
+                  title: Text(currentUser!.gender == "female" ? "Жінка" : "Чоловік"),
+                  subtitle: const Text("Стать"),
                 ),
               ),
               if (currentUser!.car != null)

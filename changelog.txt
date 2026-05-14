@@ -106,19 +106,52 @@ test
 Збілдив релізний білд для Андроїд і залив на гугл диск для зазального доступу:
 https://drive.google.com/file/d/1JrSRkwYmQgP7bh5aQF7clsGL_TPrgvrw/view?usp=drive_link
 Для білда реліза для Айфона треба макбук з IOS.
-
 ==============================
 2026.02.16 Sofa
 ==============================
 Редагнула сторінку профіля юзера і реєстрації.
 Підключила в Firebase автентифікацію по логіну і паролю.
-Додала дефолтний аватар юзера до профіля, та функцію додавання свого фото з галереї, 
-але протестити не вийшло через помилку в Firebase, 
-не дає створити сховище  для нашого регіона або несправність сайту.
-
+Додала дефолтний аватар юзера до профіля, та функцію додавання свого фото з галереї, але протестити не вийшло через помилку в Firebase, не дає створити сховище  для нашого регіона або несправність сайту.
 ==============================
 2026.02.17 NAZR
 ==============================
 Створив Firebase Cloude Storage для збереження фотографій користувачів:
 https://console.firebase.google.com/project/pojikhalyrazomus/storage/pojikhalyrazomus.firebasestorage.app/files
 додав доступ sophia.chorn@gmail.com
+
+==============================
+2026.03.31 Sofa
+==============================
+Додала функцію встановлення свого аватара користувача
+Створила у  Google Cloud Console API ключ для використання карт в програмі
+
+ Покрокова інструкція
+- Зайди у Google Cloud Console
+Відкрий https://console.cloud.google.com (console.cloud.google.com in Bing) і увійди під своїм Google‑акаунтом.
+- Створи проєкт
+- У верхньому меню натисни «Select a project» → «New Project».
+- Дай назву (наприклад, PojikhalyRazom).
+- Натисни «Create».
+- Увімкни API для карт
+- У меню зліва вибери APIs & Services → Library.
+- Знайди Maps SDK for Android.
+- Натисни «Enable».
+- Створи API‑ключ
+- У меню зліва вибери APIs & Services → Credentials.
+- Натисни «Create credentials» → «API key».
+- З’явиться новий ключ (рядок символів). Це і є твій ТВОЙ_API_KEY.
+- Обмеж доступ (рекомендовано)
+- У налаштуваннях ключа можна додати обмеження:
+- Application restrictions → «Android apps».
+- Вкажи SHA‑1 сертифікат і пакетний ідентифікатор (наприклад, com.example.pojikhaly_razom).
+- Це захистить ключ від стороннього використання.
+- Встав ключ у AndroidManifest.xml
+У <application> додай:
+<meta-data
+    android:name="com.google.android.geo.API_KEY"
+    android:value="ТВОЙ_API_KEY"/>
+- Перезапусти додаток
+
+
+
+

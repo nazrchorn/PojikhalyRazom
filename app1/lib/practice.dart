@@ -9,7 +9,7 @@ void practiceRun()async {
     id: "user123",
     name: "Іван",
     email: "ivan@example.com",
-    phone: "+380501234567",
+    phone: "+38050134567",
     rating: 4.8,
     createdAt: DateTime.now(),
   );

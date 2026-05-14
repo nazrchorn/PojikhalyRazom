@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.app1"
+    namespace = "com.example.pojikhaly_razom"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 

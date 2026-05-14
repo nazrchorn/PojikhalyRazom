@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fbAuth;
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/user.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -34,16 +32,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     password: passwordController.text.trim(),
                   );
 
-                  // Підтягування профілю з Firestore
-                  final doc = await FirebaseFirestore.instance.collection("users").doc(cred.user!.uid).get();
-                  if (doc.exists) {
-                    final user = User.fromMap(doc.id, doc.data()!);
-                    Navigator.pop(context, user); // повертаємо користувача у ProfileScreen
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Профіль не знайдено у Firestore")),
-                    );
-                  }
+                  // Повертаємо тільки uid
+                  Navigator.pop(context, cred.user!.uid);
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text("Помилка входу: $e")),
