@@ -12,7 +12,7 @@ class Trip {
   final List<String> passengers;
   final DateTime createdAt;
   final List<Location> stops;
-
+  final List<String> routeCities;
   // ✅ нові фільтри
   final bool allowChildren;
   final bool allowPets;
@@ -29,6 +29,7 @@ class Trip {
     required this.passengers,
     required this.createdAt,
     required this.stops,
+    required this.routeCities,
     this.allowChildren = true,
     this.allowPets = false,
     this.womenOnly = false,
@@ -45,6 +46,7 @@ class Trip {
       'passengers': passengers,
       'createdAt': createdAt.toIso8601String(),
       'stops': stops.map((s) => s.toMap()).toList(),
+      'routeCities': routeCities,
       'allowChildren': allowChildren,
       'allowPets': allowPets,
       'womenOnly': womenOnly,
@@ -66,12 +68,12 @@ class Trip {
       origin: Location.fromMap(map['origin']),
       destination: Location.fromMap(map['destination']),
       departureTime: parseDate(map['departureTime']),
-      // ✅ Використовуємо нову функцію
+      routeCities: List<String>.from(map['routeCities'] ?? []),
       availableSeats: map['availableSeats'] ?? 0,
       pricePerSeat: (map['pricePerSeat'] as num?)?.toDouble() ?? 0.0,
       passengers: List<String>.from(map['passengers'] ?? []),
       createdAt: parseDate(map['createdAt']),
-      // ✅ Використовуємо нову функцію
+
       stops: (map['stops'] as List<dynamic>?)
           ?.map((s) => Location.fromMap(s))
           .toList() ??

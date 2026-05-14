@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "97874361540",
-    "project_id": "pojikhalyrazom",
-    "storage_bucket": "pojikhalyrazom.firebasestorage.app"
+    "project_number": "357499313110",
+    "project_id": "pojikhalyrazomus2",
+    "storage_bucket": "pojikhalyrazomus2.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:97874361540:android:5fb502e6f19fe557e99d91",
+        "mobilesdk_app_id": "1:357499313110:android:741c345e7208143a6e6277",
         "android_client_info": {
           "package_name": "com.example.pojikhaly_razom"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBnGlcBkZ-HihcS0bknVl2DA2zdljQQ18k"
+          "current_key": "AIzaSyAr7c0YBHIVWgrc408yGvmJ1F8OcuDBvvg"
         }
       ],
       "services": {
