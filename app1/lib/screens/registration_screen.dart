@@ -74,13 +74,15 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         "photoUrl": null,
         "tripsCompleted": 0,
         "rating": 5.0,
-        "car": {
-          "brand": carBrandController.text.trim(),
-          "model": carModelController.text.trim(),
-          "year": int.tryParse(carYearController.text.trim()),
-          "color": carColorController.text.trim(), // Зберігаємо колір
-          "seats": int.tryParse(carSeatsController.text.trim()),
-        }
+        "cars": [
+          {
+            "brand": carBrandController.text.trim(),
+            "model": carModelController.text.trim(),
+            "year": int.tryParse(carYearController.text.trim()),
+            "color": carColorController.text.trim(), // Зберігаємо колір
+            "seats": int.tryParse(carSeatsController.text.trim()),
+          }
+        ]
       };
 
       await FirebaseFirestore.instance.collection("users").doc(firebaseUser.uid).set(userData);

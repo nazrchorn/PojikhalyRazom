@@ -4,7 +4,6 @@ import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user.dart';
-import '../models/car.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final User user;
@@ -18,10 +17,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _nameController;
   late TextEditingController _emailController;
   late TextEditingController _phoneController;
-  late TextEditingController _carBrandController;
-  late TextEditingController _carModelController;
-  late TextEditingController _carYearController;
-  late TextEditingController _carSeatsController;
 
   File? _selectedImage;
 
@@ -31,10 +26,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _nameController = TextEditingController(text: widget.user.name);
     _emailController = TextEditingController(text: widget.user.email);
     _phoneController = TextEditingController(text: widget.user.phone);
-    _carBrandController = TextEditingController(text: widget.user.car?.brand ?? "");
-    _carModelController = TextEditingController(text: widget.user.car?.model ?? "");
-    _carYearController = TextEditingController(text: widget.user.car?.year.toString() ?? "");
-    _carSeatsController = TextEditingController(text: widget.user.car?.seats.toString() ?? "");
   }
 
   Future<void> _pickImage() async {
@@ -78,8 +69,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             TextField(controller: _emailController, decoration: const InputDecoration(labelText: "Email")),
             TextField(controller: _phoneController, decoration: const InputDecoration(labelText: "Телефон")),
 
-            // ✅ Стать показуємо, але не редагуємо
-            const SizedBox(height: 20),
             Card(
               child: ListTile(
                 leading: const Icon(Icons.wc),
@@ -89,23 +78,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
 
             const SizedBox(height: 20),
-            const Text("Інформація про авто", style: TextStyle(fontWeight: FontWeight.bold)),
-            TextField(controller: _carBrandController, decoration: const InputDecoration(labelText: "Марка")),
-            TextField(controller: _carModelController, decoration: const InputDecoration(labelText: "Модель")),
-            TextField(controller: _carYearController, decoration: const InputDecoration(labelText: "Рік"), keyboardType: TextInputType.number),
-            TextField(controller: _carSeatsController, decoration: const InputDecoration(labelText: "Кількість місць"), keyboardType: TextInputType.number),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.cake),
+                title: Text(
+                  widget.user.birthDate != null
+                      ? "${widget.user.birthDate!.day}.${widget.user.birthDate!.month}.${widget.user.birthDate!.year}"
+                      : "Не вказано",
+                ),
+                subtitle: const Text("Дата народження (вік: обчислюється)"),
+              ),
+            ),
 
             const SizedBox(height: 30),
             ElevatedButton(
               onPressed: () async {
                 final photoUrl = await _uploadImage(widget.user.id);
-
-                final car = Car(
-                  brand: _carBrandController.text,
-                  model: _carModelController.text,
-                  year: int.tryParse(_carYearController.text) ?? 0,
-                  seats: int.tryParse(_carSeatsController.text) ?? 0,
-                );
 
                 final updatedUser = User(
                   id: widget.user.id,
@@ -113,11 +101,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   email: _emailController.text,
                   phone: _phoneController.text,
                   rating: widget.user.rating,
-                  car: car,
+                  cars: widget.user.cars,
                   createdAt: widget.user.createdAt,
                   photoUrl: photoUrl,
                   gender: widget.user.gender, // ✅ стать лишається незмінною
+                  birthDate: widget.user.birthDate, // ✅ дата народження не редагується
+                  isTalkative: widget.user.isTalkative,
+                  musicType: widget.user.musicType,
+                  isSmoker: widget.user.isSmoker,
+                  allowSmoking: widget.user.allowSmoking,
+                  tripsCompleted: widget.user.tripsCompleted,
                 );
+
 
                 await FirebaseFirestore.instance.collection("users").doc(updatedUser.id).set(updatedUser.toMap());
 

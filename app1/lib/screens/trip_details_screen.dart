@@ -279,7 +279,7 @@ class TripDetailScreen extends StatelessWidget {
               if (!snapshot.hasData) return const SizedBox();
               final user = app_user.User.fromMap(snapshot.data!.id, snapshot.data!.data() as Map<String, dynamic>);
               return InkWell(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PublicProfileScreen(userId: user.id))),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PublicProfileScreen(userId: user.id, isMyProfile: false,))),
                 child: Row(
                   children: [
                     CircleAvatar(
@@ -327,7 +327,7 @@ class TripDetailScreen extends StatelessWidget {
         final data = snapshot.data!.data() as Map<String, dynamic>;
         final String? photo = data['photoUrl'];
         return GestureDetector(
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PublicProfileScreen(userId: passengerId))),
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PublicProfileScreen(userId: passengerId, isMyProfile: false,))),
           child: Padding(
             padding: const EdgeInsets.only(right: 12),
             child: CircleAvatar(

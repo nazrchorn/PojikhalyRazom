@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'main_screen.dart';
 import '../models/location.dart';
 import '../models/trip.dart';
@@ -28,17 +28,20 @@ class TripSummaryScreen extends StatefulWidget {
 }
 
 class _TripSummaryScreenState extends State<TripSummaryScreen> {
-  // Основні параметри (збігаються з назвами в коді нижче)
-  int seats = 3;
-  double price = 50;
+  // Основні розрахункові параметри
+  int seats = 1;
+  int maxCarSeats = 4;
+  double price = 0;
+  double baseRecommendedPrice = 0; // Для порівняння з введеною ціною
+  double fuelPrice = 75.31;
   DateTime? departureTime;
 
-  // Фільтри поїздки
-  bool allowChildren = true;
+  final TextEditingController _priceController = TextEditingController();
+
+  // Налаштування поїздки
+  bool allowChildren = false;
   bool allowPets = false;
   bool womenOnly = false;
-
-  // Вподобання водія
   bool isTalkative = false;
   String musicType = "headphones";
   bool isSmoker = false;
@@ -46,18 +49,16 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
 
   String? driverGender;
   List<Map<String, dynamic>> stops = [];
-  List<Map<String, dynamic>> suggestedStops = [];
-
   final Color _primaryTeal = const Color(0xFF00BFA5);
 
   @override
   void initState() {
     super.initState();
-    _loadDriverProfile();
     stops = List.from(widget.selectedStops);
+    _loadDriverProfileAndCalculate();
   }
 
-  Future<void> _loadDriverProfile() async {
+  Future<void> _loadDriverProfileAndCalculate() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -70,8 +71,30 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
         musicType = data['musicType'] ?? "headphones";
         isSmoker = data['isSmoker'] ?? false;
         allowSmoking = data['allowSmoking'] ?? false;
+
+        if (data['car'] != null && data['car']['seats'] != null) {
+          maxCarSeats = data['car']['seats'];
+          seats = maxCarSeats - 1; // За замовчуванням всі вільні місця
+        }
       });
+      _calculateFairPrice();
     }
+  }
+
+  void _calculateFairPrice() {
+    double distanceKm = (widget.selectedRoute['distance'] ?? 0) / 1000;
+    double consumption = 8.5;
+    double totalTripFuelCost = (distanceKm * consumption / 100) * fuelPrice;
+
+    // Стабільне ділення на 3 пасажирські місця
+    double recommended = totalTripFuelCost / 3;
+    double roundedPrice = (recommended / 5).round() * 5.0;
+
+    setState(() {
+      baseRecommendedPrice = roundedPrice > 49 ? roundedPrice : 50.0;
+      price = baseRecommendedPrice;
+      _priceController.text = price.toStringAsFixed(0);
+    });
   }
 
   Future<void> _saveTrip() async {
@@ -79,13 +102,10 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
     if (user == null) return;
 
     if (departureTime == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Будь ласка, оберіть дату та час виїзду")),
-      );
+      _showSnackBar("Будь ласка, оберіть час виїзду");
       return;
     }
 
-    // 1. Формуємо об'єкти локацій
     final originLocation = Location(
       city: widget.origin['city'] ?? "Невідомо",
       countryCode: widget.origin['country'] ?? "UA",
@@ -100,16 +120,14 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
       lng: (widget.destination['lng'] as num?)?.toDouble() ?? 0.0,
     );
 
-    // 2. Індексований список міст для пошуку (toLowerCase)
     final List<String> routeCities = [
       originLocation.city.toLowerCase().trim(),
       ...stops.map((s) => (s['city'] as String).toLowerCase().trim()),
       destinationLocation.city.toLowerCase().trim(),
     ];
 
-    // 3. Формуємо об'єкт Trip для відправки
     final trip = Trip(
-      id: '', // Firestore сам згенерує ID
+      id: '',
       driverId: user.uid,
       origin: originLocation,
       destination: destinationLocation,
@@ -128,55 +146,33 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
       allowChildren: allowChildren,
       allowPets: allowPets,
       womenOnly: womenOnly,
-      // Додаємо routeCities в toMap всередині моделі Trip пізніше,
-      // або додаємо вручну нижче
     );
 
     try {
       final Map<String, dynamic> tripMap = trip.toMap();
-      tripMap['routeCities'] = routeCities; // Додаємо індекс для пошуку
-
+      tripMap['routeCities'] = routeCities;
       await FirebaseFirestore.instance.collection('trips').add(tripMap);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Поїздку успішно опубліковано!"),
-            backgroundColor: Color(0xFF5DD9C1),
-          ),
-        );
+        _showSnackBar("Поїздку опубліковано!", isSuccess: true);
         Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (_) => const MainScreen(initialIndex: 1)),
-              (route) => false,
+          context, MaterialPageRoute(builder: (_) => const MainScreen(initialIndex: 1)), (route) => false,
         );
       }
     } catch (e) {
-      debugPrint("❌ Error saving trip: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Помилка: $e")),
-        );
-      }
+      debugPrint("Error: $e");
     }
-  }
-
-  String _formatDuration(double seconds) {
-    final totalMinutes = (seconds / 60).round();
-    final hours = totalMinutes ~/ 60;
-    final minutes = totalMinutes % 60;
-    return hours > 0 ? "$hours год ${minutes} хв" : "$minutes хв";
   }
 
   @override
   Widget build(BuildContext context) {
-    final durationText = _formatDuration((widget.selectedRoute['duration'] ?? 0).toDouble());
     final distanceKm = ((widget.selectedRoute['distance'] ?? 0) / 1000).toStringAsFixed(1);
+    final durationText = _formatDuration((widget.selectedRoute['duration'] ?? 0).toDouble());
 
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text("Підсумок поїздки"),
+        title: const Text("Ваша поїздка"),
         backgroundColor: _primaryTeal,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -184,271 +180,255 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // КАРТКА МАРШРУТУ
-          Card(
-            color: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.route, color: _primaryTeal),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          "${widget.origin['city']} ➔ ${widget.destination['city']}",
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text("Відправлення: ${widget.origin['address']}", style: TextStyle(color: Colors.grey[700])),
-                  const SizedBox(height: 4),
-                  Text("Прибуття: ${widget.destination['address']}", style: TextStyle(color: Colors.grey[700])),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: _primaryTeal.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text("⏱ $durationText • 📏 $distanceKm км",
-                        style: TextStyle(color: _primaryTeal, fontWeight: FontWeight.bold)),
-                  ),
-                  const Divider(height: 32),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: _primaryTeal.withOpacity(0.1), shape: BoxShape.circle),
-                      child: Icon(Icons.calendar_month, color: _primaryTeal),
-                    ),
-                    title: const Text("Дата та час виїзду", style: TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Text(
-                      departureTime != null
-                          ? "${departureTime!.day}.${departureTime!.month}.${departureTime!.year} о ${departureTime!.hour.toString().padLeft(2, '0')}:${departureTime!.minute.toString().padLeft(2, '0')}"
-                          : "Натисніть, щоб обрати",
-                    ),
-                    onTap: () async {
-                      final date = await showDatePicker(
-                        context: context,
-                        initialDate: DateTime.now(),
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime(2030),
-                        builder: (context, child) => Theme(
-                          data: ThemeData.light().copyWith(colorScheme: ColorScheme.light(primary: _primaryTeal)),
-                          child: child!,
-                        ),
-                      );
-                      if (date != null && mounted) {
-                        final time = await showTimePicker(
-                          context: context,
-                          initialTime: TimeOfDay.now(),
-                          builder: (context, child) => Theme(
-                            data: ThemeData.light().copyWith(colorScheme: ColorScheme.light(primary: _primaryTeal)),
-                            child: child!,
-                          ),
-                        );
-                        if (time != null) {
-                          setState(() {
-                            departureTime = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-                          });
-                        }
-                      }
-                    },
-                  ),
-                ],
-              ),
+          // БЛОК МАРШРУТУ
+          _buildCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("${widget.origin['city']} → ${widget.destination['city']}",
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text("Відстань: $distanceKm км • В дорозі: $durationText",
+                    style: TextStyle(color: Colors.grey[600], fontSize: 14)),
+                const Divider(height: 24),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: _buildIconCircle(Icons.access_time_filled, true),
+                  title: const Text("Коли вирушаємо?", style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text(departureTime != null
+                      ? "${departureTime!.day}.${departureTime!.month} о ${departureTime!.hour}:${departureTime!.minute.toString().padLeft(2, '0')}"
+                      : "Натисніть, щоб вибрати час"),
+                  onTap: _pickDateTime,
+                ),
+              ],
             ),
           ),
 
           const SizedBox(height: 16),
 
-          // КАРТКА ДЕТАЛЕЙ (МІСЦЯ, ЦІНА)
-          Card(
-            color: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text("Кількість місць", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.remove_circle_outline),
-                            color: _primaryTeal,
-                            onPressed: () => setState(() { if (seats > 1) seats--; }),
-                          ),
-                          Text("$seats", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                          IconButton(
+          // МІСЦЯ ТА ЦІНА
+          _buildCard(
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text("Вільних місць", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    Row(
+                      children: [
+                        IconButton(icon: const Icon(Icons.remove_circle_outline), color: _primaryTeal,
+                            onPressed: () => setState(() { if (seats > 1) seats--; })),
+                        Text("$seats", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                        IconButton(
                             icon: const Icon(Icons.add_circle_outline),
-                            color: _primaryTeal,
-                            onPressed: () => setState(() { if (seats < 8) seats++; }),
+                            color: seats < (maxCarSeats - 1) ? _primaryTeal : Colors.grey,
+                            onPressed: () {
+                              if (seats < (maxCarSeats - 1)) setState(() => seats++);
+                            }
+                        ),
+                      ],
+                    )
+                  ],
+                ),
+                const Divider(),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("Ціна за місце", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 4),
+                          Text(
+                            (price <= baseRecommendedPrice + 150) ? "Оптимальна ціна" : "Ваша ціна",
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: (price <= baseRecommendedPrice + 150) ? Colors.green[600] : Colors.grey[600],
+                                fontWeight: FontWeight.w500
+                            ),
                           ),
                         ],
-                      )
-                    ],
-                  ),
-                  const Divider(),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text("Ціна за місце", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                      SizedBox(
-                        width: 100,
-                        child: TextField(
-                          keyboardType: TextInputType.number,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                          decoration: InputDecoration(
-                            suffixText: "грн",
-                            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: _primaryTeal)),
-                          ),
-                          onChanged: (val) {
-                            setState(() {
-                              price = double.tryParse(val) ?? price;
-                            });
-                          },
-                          controller: TextEditingController(text: price.toStringAsFixed(0))..selection = TextSelection.fromPosition(TextPosition(offset: price.toStringAsFixed(0).length)),
-                        ),
                       ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // ЗУПИНКИ
-          if (stops.isNotEmpty)
-            Card(
-              color: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text("Вибрані зупинки:", style: TextStyle(color: Colors.grey, fontSize: 12)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      children: stops.map((stop) => Chip(
-                        label: Text(stop['city']),
-                        backgroundColor: _primaryTeal.withOpacity(0.15),
-                        onDeleted: () => setState(() => stops.removeWhere((s) => s['city'] == stop['city'])),
-                      )).toList(),
+                    ),
+                    SizedBox(
+                      width: 100,
+                      child: TextField(
+                        controller: _priceController,
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold,
+                            color: (price <= baseRecommendedPrice + 150) ? Colors.black : _primaryTeal),
+                        decoration: const InputDecoration(suffixText: "грн"),
+                        onChanged: (val) => setState(() => price = double.tryParse(val) ?? 0),
+                      ),
                     ),
                   ],
                 ),
-              ),
-            ),
-
-          const SizedBox(height: 16),
-
-          // ПРАВИЛА
-          Card(
-            color: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: Column(
-              children: [
-                SwitchListTile(
-                  activeColor: _primaryTeal,
-                  title: const Text("Пасажири: Тільки жінки"),
-                  secondary: const Icon(Icons.female),
-                  value: womenOnly,
-                  onChanged: (val) => setState(() => womenOnly = val),
-                ),
-                SwitchListTile(
-                  activeColor: _primaryTeal,
-                  title: const Text("Можна з дітьми"),
-                  secondary: const Icon(Icons.child_care),
-                  value: allowChildren,
-                  onChanged: (val) => setState(() => allowChildren = val),
-                ),
-                SwitchListTile(
-                  activeColor: _primaryTeal,
-                  title: const Text("Можна з тваринами"),
-                  secondary: const Icon(Icons.pets),
-                  value: allowPets,
-                  onChanged: (val) => setState(() => allowPets = val),
-                ),
               ],
             ),
           ),
 
           const SizedBox(height: 16),
 
-          // АТМОСФЕРА
-          Card(
-            color: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          // НАЛАШТУВАННЯ ТА АТМОСФЕРА
+          _buildCard(
+            padding: EdgeInsets.zero,
             child: Column(
               children: [
-                SwitchListTile(
-                  activeColor: _primaryTeal,
-                  title: Text(isTalkative ? "Люблю поговорити" : "Мовчазний у дорозі"),
-                  secondary: Icon(isTalkative ? Icons.forum : Icons.speaker_notes_off),
-                  value: isTalkative,
-                  onChanged: (val) => setState(() => isTalkative = val),
+                // 1. Тільки жінки (якщо водій жінка)
+                _buildSwitchTile(
+                    womenOnly ? "Тільки жінки" : "Для всіх пасажирів",
+                    FontAwesomeIcons.venus,
+                    womenOnly,
+                        (v) => setState(() => womenOnly = v)
                 ),
+
+                // 2. Діти
+                _buildSwitchTile(
+                    allowChildren ? "Можна з дітьми" : "Без дітей",
+                    FontAwesomeIcons.child,
+                    allowChildren,
+                        (v) => setState(() => allowChildren = v)
+                ),
+
+                // 3. Тварини
+                _buildSwitchTile(
+                    allowPets ? "З тваринами" : "Без тварин",
+                    FontAwesomeIcons.paw,
+                    allowPets,
+                        (v) => setState(() => allowPets = v)
+                ),
+                const Divider(indent: 70),
+                _buildSwitchTile(
+                    isTalkative ? "Люблю поговорити" : "Мовчазний у дорозі",
+                    isTalkative ? Icons.forum_rounded : Icons.speaker_notes_off_rounded,
+                    isTalkative,
+                        (v) => setState(() => isTalkative = v),
+                    isFa: false
+                ),
+
+                // Музика
                 ListTile(
-                  leading: const Icon(Icons.music_note, color: Colors.grey), // Виправлено тут
-                  title: const Text("Музика в салоні"),
+                  leading: _buildIconCircle(
+                      musicType == "music" ? Icons.music_note_rounded : Icons.volume_off_rounded,
+                      musicType == "music"
+                  ),
+                  title: Text(musicType == "music" ? "Музика в салоні" : "Їду в тиші"),
                   trailing: SegmentedButton<String>(
                     segments: const [
-                      ButtonSegment(value: "silence", icon: Icon(Icons.volume_off)),
-                      ButtonSegment(value: "music", icon: Icon(Icons.music_note)),
+                      ButtonSegment(value: "silence", icon: Icon(Icons.volume_off, size: 20)),
+                      ButtonSegment(value: "music", icon: Icon(Icons.music_note, size: 20)),
                     ],
                     selected: {musicType},
                     onSelectionChanged: (val) => setState(() => musicType = val.first),
+                    showSelectedIcon: false,
+                    style: SegmentedButton.styleFrom(
+                        selectedBackgroundColor: _primaryTeal.withOpacity(0.2),
+                        selectedForegroundColor: _primaryTeal
+                    ),
                   ),
                 ),
-                SwitchListTile(
-                  activeColor: _primaryTeal,
-                  title: Text(isSmoker ? "Я палю" : "Не палю"),
-                  secondary: const Icon(Icons.smoking_rooms),
-                  value: isSmoker,
-                  onChanged: (val) => setState(() => isSmoker = val),
+
+                // Власна звичка водія
+                _buildSwitchTile(
+                    isSmoker ? "Я палю" : "Не палю",
+                    isSmoker ? Icons.smoking_rooms : Icons.smoke_free,
+                    isSmoker,
+                        (v) => setState(() => isSmoker = v),
+                    isFa: false
                 ),
-                SwitchListTile(
-                  activeColor: _primaryTeal,
-                  title: const Text("Можна палити пасажирам"),
-                  secondary: const Icon(Icons.smoke_free),
-                  value: allowSmoking,
-                  onChanged: (val) => setState(() => allowSmoking = val),
+
+                // ПРАВИЛО ДЛЯ ПАСАЖИРІВ (те, що ми забули)
+                _buildSwitchTile(
+                    allowSmoking ? "Можна палити в салоні" : "Палити в салоні заборонено",
+                    allowSmoking ? Icons.check_circle_outline : Icons.block_flipped,
+                    allowSmoking,
+                        (v) => setState(() => allowSmoking = v),
+                    isFa: false
                 ),
               ],
             ),
           ),
 
-          const SizedBox(height: 32),
-
+          const SizedBox(height: 24),
           ElevatedButton(
             onPressed: _saveTrip,
             style: ElevatedButton.styleFrom(
               backgroundColor: _primaryTeal,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              minimumSize: const Size(double.infinity, 56),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              elevation: 2,
             ),
-            child: const Text("Опублікувати поїздку", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            child: const Text("Опублікувати", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 40),
         ],
       ),
     );
+  }
+
+  // --- Допоміжні методи для інтерфейсу ---
+
+  Widget _buildCard({required Widget child, EdgeInsets? padding}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      padding: padding ?? const EdgeInsets.all(20),
+      child: child,
+    );
+  }
+
+  Widget _buildIconCircle(dynamic icon, bool isActive) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: isActive ? _primaryTeal.withOpacity(0.12) : Colors.grey.withOpacity(0.08),
+        shape: BoxShape.circle,
+      ),
+      child: icon is IconData
+          ? Icon(icon, color: isActive ? _primaryTeal : Colors.grey[500], size: 20)
+          : FaIcon(icon as IconData, color: isActive ? _primaryTeal : Colors.grey[500], size: 18),
+    );
+  }
+
+  Widget _buildSwitchTile(String title, dynamic icon, bool value, Function(bool) onChanged, {bool isFa = true}) {
+    return SwitchListTile(
+      activeColor: _primaryTeal,
+      secondary: _buildIconCircle(icon, value),
+      title: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+      value: value,
+      onChanged: onChanged,
+    );
+  }
+
+  String _formatDuration(double seconds) {
+    final hours = seconds ~/ 3600;
+    final minutes = (seconds % 3600) ~/ 60;
+    return hours > 0 ? "$hours год $minutes хв" : "$minutes хв";
+  }
+
+  void _showSnackBar(String text, {bool isSuccess = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text), backgroundColor: isSuccess ? _primaryTeal : Colors.redAccent),
+    );
+  }
+
+  Future<void> _pickDateTime() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2030),
+      builder: (context, child) => Theme(data: ThemeData.light().copyWith(colorScheme: ColorScheme.light(primary: _primaryTeal)), child: child!),
+    );
+    if (date != null) {
+      final time = await showTimePicker(context: context, initialTime: TimeOfDay.now());
+      if (time != null) setState(() => departureTime = DateTime(date.year, date.month, date.day, time.hour, time.minute));
+    }
   }
 }
