@@ -9,21 +9,37 @@ import 'arrival_search_screen.dart';
 import 'route_selection_screen.dart';
 import 'trip_details_screen.dart';
 
-class MyTripsScreen extends StatelessWidget {
+class MyTripsScreen extends StatefulWidget {
   const MyTripsScreen({super.key});
+
+  @override
+  State<MyTripsScreen> createState() => _MyTripsScreenState();
+}
+
+class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateMixin {
+  late TabController _tabController;
 
   final Color primaryTurquoise = const Color(0xFF5DD9C1);
 
-  // Функція для послідовного створення поїздки
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
   Future<void> _createNewTrip(BuildContext context) async {
-    // Крок 1: Вибір точки відправлення
     final origin = await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const DepartureSearchScreen()),
     );
     if (origin == null) return;
 
-    // Крок 2: Вибір точки прибуття
     if (!context.mounted) return;
     final destination = await Navigator.push(
       context,
@@ -31,7 +47,6 @@ class MyTripsScreen extends StatelessWidget {
     );
     if (destination == null) return;
 
-    // Крок 3: Вибір маршруту на карті
     if (!context.mounted) return;
     await Navigator.push(
       context,
@@ -39,7 +54,7 @@ class MyTripsScreen extends StatelessWidget {
         builder: (_) => RouteSelectionScreen(
           origin: origin,
           destination: destination,
-          apiKey: MyApp.orsKey, // Використовуємо ключ для побудови доріг
+          apiKey: MyApp.orsKey,
         ),
       ),
     );
@@ -62,7 +77,6 @@ class MyTripsScreen extends StatelessWidget {
       Filter('passengers', arrayContains: user.uid),
     ));
 
-
     return Scaffold(
       backgroundColor: const Color(0xFFFBFBFB),
       appBar: AppBar(
@@ -71,6 +85,18 @@ class MyTripsScreen extends StatelessWidget {
         backgroundColor: Colors.white,
         elevation: 0,
         foregroundColor: Colors.black87,
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: primaryTurquoise,
+          labelColor: primaryTurquoise,
+          unselectedLabelColor: Colors.grey,
+          indicatorWeight: 3,
+          tabs: const [
+            Tab(text: 'Активні'),
+            Tab(text: 'Завершені'),
+            Tab(text: 'Скасовані'),
+          ],
+        ),
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: tripsQuery.snapshots(),
@@ -79,75 +105,63 @@ class MyTripsScreen extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text("Поки що немає запланованих поїздок"));
+            return const Center(child: Text("Поїздок не знайдено"));
           }
+
           final now = DateTime.now();
-          // 1. Отримуємо список документів
           final tripDocs = snapshot.data!.docs;
 
-// 2. Перетворюємо їх на об'єкти Trip та сортуємо
-          final List<Trip> sortedTrips = tripDocs.map((doc) => Trip.fromMap(doc.data() as Map<String, dynamic>, doc.id))
-          // Залишаємо тільки ті, що будуть зараз або в майбутньому
-              .where((trip) => trip.departureTime.isAfter(now))
+          final List<Trip> allTrips = tripDocs
+              .map((doc) => Trip.fromMap(doc.data() as Map<String, dynamic>, doc.id))
               .toList();
 
-// Сортування: найближчі поїздки будуть зверху
-          sortedTrips.sort((a, b) => a.departureTime.compareTo(b.departureTime));
-          return ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: sortedTrips.length, // Використовуємо довжину нового списку
-            itemBuilder: (context, index) {
-              // Беремо вже готовий об'єкт Trip
-              final tripObject = sortedTrips[index];
+          // 1. Активні поїздки (статус = 'active' і час ще не прийшов)
+          final activeTrips = allTrips
+              .where((trip) => trip.status == 'active' && trip.departureTime.isAfter(now))
+              .toList()
+            ..sort((a, b) => a.departureTime.compareTo(b.departureTime));
 
-              final bool isDriver = tripObject.driverId == user.uid;
+          // 2. Завершені поїздки (статус = 'completed' або час вже прийшов і статус != 'cancelled')
+          final completedTrips = allTrips
+              .where((trip) =>
+                  trip.status == 'completed' ||
+                  (trip.departureTime.isBefore(now) && trip.status != 'cancelled'))
+              .toList()
+            ..sort((a, b) => b.departureTime.compareTo(a.departureTime));
 
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.03),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    )
-                  ],
-                ),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  leading: CircleAvatar(
-                    backgroundColor: isDriver ? primaryTurquoise.withOpacity(0.1) : Colors.blue.withOpacity(0.1),
-                    child: Icon(
-                      isDriver ? Icons.drive_eta_rounded : Icons.person_pin_circle_rounded,
-                      color: isDriver ? primaryTurquoise : Colors.blue,
+          // 3. Скасовані поїздки
+          final cancelledTrips = allTrips
+              .where((trip) => trip.status == 'cancelled')
+              .toList()
+            ..sort((a, b) => b.cancelledAt?.compareTo(a.cancelledAt ?? DateTime.now()) ?? -1);
+
+          return TabBarView(
+            controller: _tabController,
+            children: [
+              // Вкладка: Активні
+              activeTrips.isEmpty
+                  ? const Center(child: Text("Активних поїздок немає"))
+                  : ListView(
+                      padding: const EdgeInsets.all(12),
+                      children: activeTrips.map((trip) => _buildTripItem(context, trip, user.uid, 'active')).toList(),
                     ),
-                  ),
-                  title: Text(
-                    "${tripObject.origin.city} → ${tripObject.destination.city}",
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      "${tripObject.departureTime.day}.${tripObject.departureTime.month} | "
-                          "${tripObject.departureTime.hour}:${tripObject.departureTime.minute.toString().padLeft(2, '0')} | "
-                          "${tripObject.pricePerSeat.toInt()} ₴",
+
+              // Вкладка: Завершені
+              completedTrips.isEmpty
+                  ? const Center(child: Text("Завершених поїздок немає"))
+                  : ListView(
+                      padding: const EdgeInsets.all(12),
+                      children: completedTrips.map((trip) => _buildTripItem(context, trip, user.uid, 'completed')).toList(),
                     ),
-                  ),
-                  trailing: const Icon(Icons.chevron_right_rounded, color: Colors.grey),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => TripDetailScreen(trip: tripObject),
-                      ),
-                    );
-                  },
-                ),
-              );
-            },
+
+              // Вкладка: Скасовані
+              cancelledTrips.isEmpty
+                  ? const Center(child: Text("Скасованих поїздок немає"))
+                  : ListView(
+                      padding: const EdgeInsets.all(12),
+                      children: cancelledTrips.map((trip) => _buildTripItem(context, trip, user.uid, 'cancelled')).toList(),
+                    ),
+            ],
           );
         },
       ),
@@ -155,6 +169,87 @@ class MyTripsScreen extends StatelessWidget {
         backgroundColor: primaryTurquoise,
         onPressed: () => _createNewTrip(context),
         child: const Icon(Icons.add, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildTripItem(BuildContext context, Trip tripObject, String currentUserId, String status) {
+    final bool isDriver = tripObject.driverId == currentUserId;
+    Color statusColor = primaryTurquoise;
+    String statusLabel = 'Активна';
+
+    if (status == 'completed') {
+      statusColor = Colors.green;
+      statusLabel = 'Завершена';
+    } else if (status == 'cancelled') {
+      statusColor = Colors.red;
+      statusLabel = 'Скасована';
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: CircleAvatar(
+          backgroundColor: statusColor.withOpacity(0.1),
+          child: Icon(
+            isDriver ? Icons.drive_eta_rounded : Icons.person_pin_circle_rounded,
+            color: statusColor,
+          ),
+        ),
+        title: Text(
+          "${tripObject.origin.city} → ${tripObject.destination.city}",
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "${tripObject.departureTime.day}.${tripObject.departureTime.month} | "
+                "${tripObject.departureTime.hour}:${tripObject.departureTime.minute.toString().padLeft(2, '0')} | "
+                "${tripObject.pricePerSeat.toInt()} ₴",
+              ),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  statusLabel,
+                  style: TextStyle(
+                    color: statusColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        trailing: const Icon(Icons.chevron_right_rounded, color: Colors.grey),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => TripDetailScreen(trip: tripObject),
+            ),
+          );
+        },
       ),
     );
   }

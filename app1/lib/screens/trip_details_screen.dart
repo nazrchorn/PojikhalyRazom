@@ -5,9 +5,11 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'dart:math' show cos, sqrt, asin;
 import '../models/trip.dart';
 import '../models/user.dart' as app_user;
+import '../main.dart';
 import 'public_profile_screen.dart';
 import 'trip_details_map_screen.dart';
 import 'messanger_screen.dart';
+import 'review_screen.dart';
 
 class TripDetailScreen extends StatelessWidget {
   final Trip trip;
@@ -265,6 +267,9 @@ class TripDetailScreen extends StatelessWidget {
 
   Widget _buildBottomPanel(BuildContext context, int liveSeats) {
     final String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final bool isDriver = trip.driverId == currentUserId;
+    final bool isPassenger = trip.passengers.contains(currentUserId);
+    final bool isTripCompleted = trip.status == 'completed';
 
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 30),
@@ -337,7 +342,7 @@ class TripDetailScreen extends StatelessWidget {
               );
             },
           ),
-          if (showBookingButton && liveSeats > 0) ...[
+          if (showBookingButton && liveSeats > 0 && trip.status == 'active') ...[
             const SizedBox(height: 15),
             ElevatedButton(
               onPressed: () => _handleBooking(context),
@@ -348,6 +353,80 @@ class TripDetailScreen extends StatelessWidget {
                 elevation: 0,
               ),
               child: const Text("Забронювати", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+            ),
+          ],
+          // Кнопка скасування для пасажира
+          if (isPassenger && !isTripCompleted && trip.status == 'active') ...[
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: () => _cancelBooking(context),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                foregroundColor: Colors.red,
+                side: const BorderSide(color: Colors.red),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              child: const Text('Скасувати бронювання', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+          // Кнопка скасування для водія
+          if (isDriver && !isTripCompleted && trip.status == 'active') ...[
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: () => _cancelTrip(context),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                foregroundColor: Colors.red,
+                side: const BorderSide(color: Colors.red),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              child: const Text('Скасувати поїздку', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+          // Кнопка відгуку
+          if (isTripCompleted && (isDriver || isPassenger) && currentUserId.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            FutureBuilder<QuerySnapshot>(
+              future: FirebaseFirestore.instance
+                  .collection('reviews')
+                  .where('tripId', isEqualTo: trip.id)
+                  .where('fromUserId', isEqualTo: currentUserId)
+                  .get(),
+              builder: (context, snapshot) {
+                final hasReviewedAlready = snapshot.hasData && snapshot.data!.docs.isNotEmpty;
+                if (hasReviewedAlready) {
+                  return Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.green.shade300),
+                    ),
+                    child: Text(
+                      '✓ Ви вже залишили відгук',
+                      style: TextStyle(color: Colors.green.shade700, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                  );
+                }
+
+                return ElevatedButton(
+                  onPressed: () => _openReviewScreen(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber,
+                    minimumSize: const Size.fromHeight(48),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.star, color: Colors.white, size: 20),
+                      SizedBox(width: 8),
+                      Text('Написати відгук', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                    ],
+                  ),
+                );
+              },
             ),
           ],
         ],
@@ -423,7 +502,7 @@ class TripDetailScreen extends StatelessWidget {
   }
 
   void _openMap(BuildContext context) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => TripDetailsMapScreen(trip: trip, apiKey: "YOUR_KEY")));
+    Navigator.push(context, MaterialPageRoute(builder: (_) => TripDetailsMapScreen(trip: trip, apiKey: MyApp.orsKey)));
   }
 
   Future<void> _handleBooking(BuildContext context) async {
@@ -443,5 +522,119 @@ class TripDetailScreen extends StatelessWidget {
     } catch (e) {
       if (context.mounted) Navigator.pop(context);
     }
+  }
+
+  Future<void> _cancelBooking(BuildContext context) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Скасувати бронювання?'),
+        content: const Text('Ви впевнені, що хочете скасувати своє місце в цій поїздці?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Ні'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Так', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+      final tripRef = FirebaseFirestore.instance.collection('trips').doc(trip.id);
+      await FirebaseFirestore.instance.runTransaction((tx) async {
+        final snap = await tx.get(tripRef);
+        final int seats = snap.data()?['availableSeats'] ?? 0;
+        final List pass = List.from(snap.data()?['passengers'] ?? []);
+        pass.remove(user.uid);
+        tx.update(tripRef, {'availableSeats': seats + 1, 'passengers': pass});
+      });
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✓ Бронювання скасовано')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) Navigator.pop(context);
+    }
+  }
+
+  Future<void> _cancelTrip(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Скасувати поїздку?'),
+        content: const Text('Це сповістить усіх пасажирів про скасування.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Ні'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Так', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+      await FirebaseFirestore.instance.collection('trips').doc(trip.id).update({
+        'status': 'cancelled',
+        'cancelledBy': FirebaseAuth.instance.currentUser?.uid,
+        'cancelledAt': DateTime.now(),
+      });
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✓ Поїздку скасовано')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) Navigator.pop(context);
+    }
+  }
+
+  void _openReviewScreen(BuildContext context) {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final toUserId = (trip.driverId == currentUserId) 
+        ? (trip.passengers.isNotEmpty ? trip.passengers.first : trip.driverId)
+        : trip.driverId;
+    
+    final role = trip.driverId == currentUserId ? 'driver' : 'passenger';
+
+    Future.delayed(Duration.zero, () async {
+      final toUserDoc = await FirebaseFirestore.instance.collection('users').doc(toUserId).get();
+      final toUserData = toUserDoc.data() as Map<String, dynamic>;
+
+      if (context.mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ReviewScreen(
+              tripId: trip.id,
+              fromUserId: currentUserId,
+              toUserId: toUserId,
+              toUserName: toUserData['name'] ?? 'Користувач',
+              toUserPhotoUrl: toUserData['photoUrl'],
+              role: role,
+            ),
+          ),
+        );
+      }
+    });
   }
 }

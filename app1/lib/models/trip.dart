@@ -13,10 +13,14 @@ class Trip {
   final DateTime createdAt;
   final List<Location> stops;
   final List<String> routeCities;
-  // ✅ нові фільтри
+  final String status; // 'active', 'completed', 'cancelled'
   final bool allowChildren;
   final bool allowPets;
   final bool womenOnly;
+  final String? cancelledBy; // хто скасував поїздку (driverId або passengerId)
+  final String? cancellationReason; // причина скасування
+  final DateTime? cancelledAt; // коли скасована
+  final DateTime? completedAt; // коли завершена
 
   Trip({
     required this.id,
@@ -30,9 +34,14 @@ class Trip {
     required this.createdAt,
     required this.stops,
     required this.routeCities,
+    this.status = 'active',
     this.allowChildren = false,
     this.allowPets = false,
     this.womenOnly = false,
+    this.cancelledBy,
+    this.cancellationReason,
+    this.cancelledAt,
+    this.completedAt,
   });
 
   Map<String, dynamic> toMap() {
@@ -50,6 +59,11 @@ class Trip {
       'allowChildren': allowChildren,
       'allowPets': allowPets,
       'womenOnly': womenOnly,
+      'status': status,
+      'cancelledBy': cancelledBy,
+      'cancellationReason': cancellationReason,
+      'cancelledAt': cancelledAt?.toIso8601String(),
+      'completedAt': completedAt?.toIso8601String(),
     };
   }
 
@@ -73,7 +87,7 @@ class Trip {
       pricePerSeat: (map['pricePerSeat'] as num?)?.toDouble() ?? 0.0,
       passengers: List<String>.from(map['passengers'] ?? []),
       createdAt: parseDate(map['createdAt']),
-
+      status: map['status'] ?? 'active',
       stops: (map['stops'] as List<dynamic>?)
           ?.map((s) => Location.fromMap(s))
           .toList() ??
@@ -81,6 +95,10 @@ class Trip {
       allowChildren: map['allowChildren'] ?? true,
       allowPets: map['allowPets'] ?? false,
       womenOnly: map['womenOnly'] ?? false,
+      cancelledBy: map['cancelledBy'],
+      cancellationReason: map['cancellationReason'],
+      cancelledAt: map['cancelledAt'] != null ? parseDate(map['cancelledAt']) : null,
+      completedAt: map['completedAt'] != null ? parseDate(map['completedAt']) : null,
     );
   }
 }

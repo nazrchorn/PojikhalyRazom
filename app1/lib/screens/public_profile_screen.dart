@@ -10,6 +10,8 @@ import 'edit_profile_screen.dart';
 import 'add_car_dialog.dart';
 import 'login_screen.dart';
 import 'registration_screen.dart';
+import 'reviews_list_screen.dart';
+
 class PublicProfileScreen extends StatefulWidget {
   final String userId;
   final bool isMyProfile;
@@ -165,7 +167,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Скасувати")),
           TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text("Видалити", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold))
+              child: const Text("Видалити", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold))
           ),
         ],
       ),
@@ -178,7 +180,62 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       _loadUserData(); // Оновлюємо UI після видалення
     }
   }
-
+  Widget _buildReviewsButton(app_user.User user) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ReviewsListScreen(userId: widget.userId, userName: user.name,),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.02),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            )
+          ],
+          border: Border.all(color: Colors.grey.shade100),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.amber.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.rate_review_rounded, color: Colors.green, size: 20),
+            ),
+            const SizedBox(width: 15),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Відгуки",
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    "Переглянути, що кажуть інші",
+                    style: TextStyle(fontSize: 13, color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+          ],
+        ),
+      ),
+    );
+  }
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
@@ -315,7 +372,12 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
               ),
             ),
 
-            const SizedBox(height: 30),
+            const SizedBox(height: 25),
+
+            // НОВА КНОПКА ВІДГУКІВ
+            _buildReviewsButton(user),
+
+            const SizedBox(height: 25),
             _buildSectionTitle("Про користувача"),
             const SizedBox(height: 12),
             _buildInfoCard([
@@ -394,7 +456,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           child: Icon(Icons.directions_car_filled_rounded, color: primaryTurquoise),
         ),
         title: Text("${car.brand} ${car.model}", style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text("${car.color ?? '—'} • ${car.year} рік • ${car.seats} місць"),
+        subtitle: Text("${car.color ?? '—'} • ${car.year} рік"),
         trailing: widget.isMyProfile
             ? IconButton(
           icon: const Icon(Icons.delete_outline_rounded, color: Colors.grey),
