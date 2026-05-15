@@ -30,7 +30,7 @@ class Trip {
     required this.createdAt,
     required this.stops,
     required this.routeCities,
-    this.allowChildren = true,
+    this.allowChildren = false,
     this.allowPets = false,
     this.womenOnly = false,
   });

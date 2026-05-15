@@ -1,0 +1,166 @@
+{
+  "brands": [
+    {
+      "name": "Audi",
+      "models": ["A1", "A3", "A4", "A5", "A6", "A7", "A8", "Q3", "Q5", "Q7", "Q8", "TT", "R8"]
+    },
+    {
+      "name": "BMW",
+      "models": ["1", "2", "3", "4", "5", "6", "7", "8", "X1", "X2", "X3", "X4", "X5", "X6", "X7", "Z4"]
+    },
+    {
+      "name": "Mercedes-Benz",
+      "models": ["A", "B", "C", "E", "S", "G", "GLA", "GLB", "GLC", "GLE", "GLS", "AMG", "CLA", "EQE"]
+    },
+    {
+      "name": "Tesla",
+      "models": ["Model 3", "Model S", "Model X", "Model Y", "Roadster", "Cybertruck"]
+    },
+    {
+      "name": "Toyota",
+      "models": ["Corolla", "Camry", "RAV4", "Highlander", "4Runner", "Venza", "Yaris", "GR86", "Supra"]
+    },
+    {
+      "name": "Honda",
+      "models": ["Civic", "Accord", "CR-V", "Pilot", "Fit", "Clarity", "Ridgeline", "Odyssey"]
+    },
+    {
+      "name": "Volkswagen",
+      "models": ["Golf", "Jetta", "Passat", "Tiguan", "Touareg", "Beetle", "ID.4", "Atlas", "ID.Buzz"]
+    },
+    {
+      "name": "Ford",
+      "models": ["Mustang", "F-150", "Focus", "Fusion", "Edge", "Explorer", "Escape", "Ranger"]
+    },
+    {
+      "name": "Chevrolet",
+      "models": ["Malibu", "Cruze", "Spark", "Equinox", "Traverse", "Silverado", "Colorado", "Camaro"]
+    },
+    {
+      "name": "Nissan",
+      "models": ["Altima", "Maxima", "Qashqai", "Rogue", "Murano", "Pathfinder", "Frontier", "GT-R"]
+    },
+    {
+      "name": "Hyundai",
+      "models": ["Elantra", "Sonata", "Santa Fe", "Tucson", "Kona", "Venue", "Ioniq", "Palisade"]
+    },
+    {
+      "name": "Kia",
+      "models": ["K5", "Optima", "Sportage", "Sorento", "Niro", "Telluride", "Soul", "Stinger"]
+    },
+    {
+      "name": "Mazda",
+      "models": ["Mazda3", "Mazda6", "Mazda CX-3", "Mazda CX-5", "Mazda CX-9", "MX-5", "Mazda2"]
+    },
+    {
+      "name": "Subaru",
+      "models": ["Impreza", "Legacy", "Outback", "Crosstrek", "Forester", "Ascent", "BRZ", "WRX"]
+    },
+    {
+      "name": "Volvo",
+      "models": ["S60", "S90", "V60", "V90", "XC40", "XC60", "XC90", "C40"]
+    },
+    {
+      "name": "Lexus",
+      "models": ["ES", "LS", "IS", "GS", "UX", "NX", "RX", "LX", "GX", "TX"]
+    },
+    {
+      "name": "Porsche",
+      "models": ["911", "Cayenne", "Panamera", "Boxster", "Cayman", "Taycan", "911 Turbo"]
+    },
+    {
+      "name": "Lamborghini",
+      "models": ["Revuelto", "Urus", "Huracán", "Aventador"]
+    },
+    {
+      "name": "Ferrari",
+      "models": ["SF90", "F8", "Roma", "Portofino", "LaFerrari"]
+    },
+    {
+      "name": "Jeep",
+      "models": ["Grand Cherokee", "Wrangler", "Compass", "Renegade", "Gladiator", "Cherokee"]
+    },
+    {
+      "name": "Opel",
+      "models": ["Corsa", "Astra", "Grandland X", "Insignia", "Combo", "Rekord"]
+    },
+    {
+      "name": "Skoda",
+      "models": ["Octavia", "Superb", "Fabia", "Rapid", "Kodiaq", "Karoq", "Enyaq"]
+    },
+    {
+      "name": "Renault",
+      "models": ["Clio", "Megane", "Scenic", "Captur", "Duster", "Arkana", "Koleos", "Laguna"]
+    },
+    {
+      "name": "Peugeot",
+      "models": ["208", "308", "3008", "5008", "2008", "Rifter", "Expert"]
+    },
+    {
+      "name": "Citroen",
+      "models": ["C1", "C3", "C5", "Berlingo", "Aircross", "C-Elysee", "Jumper"]
+    },
+    {
+      "name": "Fiat",
+      "models": ["500", "Panda", "Tipo", "Punto", "500X", "500e", "Argo"]
+    },
+    {
+      "name": "Alfa Romeo",
+      "models": ["Giulia", "Stelvio", "Tonale", "Junior", "Giulietta"]
+    },
+    {
+      "name": "Lada",
+      "models": ["Vesta", "Niva", "Granta", "Largus", "Kalina", "Priora"]
+    },
+    {
+      "name": "Seat",
+      "models": ["Ibiza", "Leon", "Ateca", "Tarraco", "Arona", "Mii"]
+    },
+    {
+      "name": "Mitsubishi",
+      "models": ["Outlander", "Mirage", "Eclipse Cross", "ASX", "Pajero", "Lancer"]
+    },
+    {
+      "name": "Dacia",
+      "models": ["Sandero", "Duster", "Lodgy", "Logan", "Spring", "Nova"]
+    },
+    {
+      "name": "GAC",
+      "models": ["GN8", "GN6", "GN5", "GM8"]
+    },
+    {
+      "name": "BYD",
+      "models": ["Yuan Plus", "Qin", "Song", "Han", "Seagull"]
+    },
+    {
+      "name": "Geely",
+      "models": ["Monjaro", "Geometry", "Emgrand", "Coolray"]
+    },
+    {
+      "name": "Chery",
+      "models": ["Tiggo", "Arrizo", "QQ", "iCar"]
+    }
+  ],
+  "colors": [
+    "Чорний",
+    "Білий",
+    "Сірий",
+    "Срібний",
+    "Червоний",
+    "Темно-червоний",
+    "Синій",
+    "Темно-синій",
+    "Світло-синій",
+    "Зелений",
+    "Темно-зелений",
+    "Жовтий",
+    "Оранжевий",
+    "Коричневий",
+    "Бежевий",
+    "Жовто-зелений",
+    "Фіолетовий",
+    "Золотий",
+    "Графіт"
+  ]
+}
+
