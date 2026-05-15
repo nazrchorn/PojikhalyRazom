@@ -288,6 +288,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
+  // Non-null when user is editing an existing message
+  String? _editingDocId;
+
   @override
   void dispose() {
     _messageController.dispose();
@@ -343,6 +346,17 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
     _messageController.clear();
 
+    if (_editingDocId != null) {
+      // Save edit
+      final docId = _editingDocId!;
+      setState(() => _editingDocId = null);
+      await FirebaseFirestore.instance
+          .collection('messages')
+          .doc(docId)
+          .update({'text': text, 'editedAt': FieldValue.serverTimestamp()});
+      return;
+    }
+
     await FirebaseFirestore.instance.collection('messages').add({
       'tripId': '',
       'senderId': widget.currentUserId,
@@ -357,6 +371,88 @@ class _ConversationScreenState extends State<ConversationScreen> {
       _scrollController.position.maxScrollExtent + 120,
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeOut,
+    );
+  }
+
+  void _startEdit(String docId, String currentText) {
+    setState(() => _editingDocId = docId);
+    _messageController.text = currentText;
+    _messageController.selection = TextSelection.fromPosition(
+      TextPosition(offset: currentText.length),
+    );
+  }
+
+  void _cancelEdit() {
+    setState(() => _editingDocId = null);
+    _messageController.clear();
+  }
+
+  Future<void> _deleteMessage(BuildContext ctx, String docId) async {
+    final confirmed = await showDialog<bool>(
+      context: ctx,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Видалити повiдомлення?'),
+        content: const Text('Це повiдомлення буде видалено назавжди.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, false),
+            child: const Text('Скасувати'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, true),
+            child: const Text('Видалити', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await FirebaseFirestore.instance.collection('messages').doc(docId).delete();
+    }
+  }
+
+  void _showMessageOptions(
+    BuildContext ctx,
+    String docId,
+    String text,
+  ) {
+    showModalBottomSheet(
+      context: ctx,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Редагувати'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _startEdit(docId, text);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: const Text('Видалити', style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(ctx);
+                _deleteMessage(ctx, docId);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
     );
   }
 
@@ -418,55 +514,74 @@ class _ConversationScreenState extends State<ConversationScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
+                    final docId = docs[index].id;
                     final data = docs[index].data();
                     final senderId = data['senderId'] as String? ?? '';
                     final text = data['text'] as String? ?? '';
                     final isMine = senderId == widget.currentUserId;
                     final sentAt = _safeSentAt(data);
                     final isRead = _safeIsRead(data);
+                    final isEdited = data['editedAt'] != null;
 
                     return Align(
                       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(vertical: 4),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        constraints: const BoxConstraints(maxWidth: 290),
-                        decoration: BoxDecoration(
-                          color: isMine ? const Color(0xFF5DD9C1) : Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              text,
-                              style: TextStyle(
-                                color: isMine ? Colors.white : Colors.black87,
-                                fontSize: 15,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  _formatTime(sentAt),
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: isMine ? Colors.white70 : Colors.black45,
-                                  ),
+                      child: GestureDetector(
+                        onLongPress: isMine
+                            ? () => _showMessageOptions(context, docId, text)
+                            : null,
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          constraints: const BoxConstraints(maxWidth: 290),
+                          decoration: BoxDecoration(
+                            color: isMine ? const Color(0xFF5DD9C1) : Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                text,
+                                style: TextStyle(
+                                  color: isMine ? Colors.white : Colors.black87,
+                                  fontSize: 15,
                                 ),
-                                if (isMine) ...[
-                                  const SizedBox(width: 6),
-                                  Icon(
-                                    isRead ? Icons.done_all_rounded : Icons.done_rounded,
-                                    size: 14,
-                                    color: isRead ? Colors.white : Colors.white70,
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (isEdited)
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 4),
+                                      child: Text(
+                                        'ред.',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontStyle: FontStyle.italic,
+                                          color: isMine ? Colors.white60 : Colors.black38,
+                                        ),
+                                      ),
+                                    ),
+                                  Text(
+                                    _formatTime(sentAt),
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: isMine ? Colors.white70 : Colors.black45,
+                                    ),
                                   ),
+                                  if (isMine) ...[
+                                    const SizedBox(width: 6),
+                                    Icon(
+                                      isRead ? Icons.done_all_rounded : Icons.done_rounded,
+                                      size: 14,
+                                      color: isRead ? Colors.white : Colors.white70,
+                                    ),
+                                  ],
                                 ],
-                              ],
-                            ),
-                          ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     );
@@ -480,39 +595,76 @@ class _ConversationScreenState extends State<ConversationScreen> {
             child: Container(
               color: Colors.white,
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-              child: Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _messageController,
-                      minLines: 1,
-                      maxLines: 4,
-                      decoration: InputDecoration(
-                        hintText: 'Ваше повiдомлення...',
-                        filled: true,
-                        fillColor: const Color(0xFFF1F3F5),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(22),
-                          borderSide: BorderSide.none,
+                  if (_editingDocId != null)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE0F7F4),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF5DD9C1)),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Редагування повiдомлення',
+                              style: TextStyle(fontSize: 13, color: Color(0xFF2E7D70)),
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: _cancelEdit,
+                            child: const Icon(Icons.close_rounded, size: 18, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _messageController,
+                          minLines: 1,
+                          maxLines: 4,
+                          decoration: InputDecoration(
+                            hintText: _editingDocId != null
+                                ? 'Вiдредагуйте повiдомлення...'
+                                : 'Ваше повiдомлення...',
+                            filled: true,
+                            fillColor: const Color(0xFFF1F3F5),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(22),
+                              borderSide: BorderSide.none,
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          ),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    height: 44,
-                    width: 44,
-                    child: ElevatedButton(
-                      onPressed: _sendMessage,
-                      style: ElevatedButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        shape: const CircleBorder(),
-                        backgroundColor: const Color(0xFF5DD9C1),
-                        elevation: 0,
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        height: 44,
+                        width: 44,
+                        child: ElevatedButton(
+                          onPressed: _sendMessage,
+                          style: ElevatedButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            shape: const CircleBorder(),
+                            backgroundColor: const Color(0xFF5DD9C1),
+                            elevation: 0,
+                          ),
+                          child: Icon(
+                            _editingDocId != null
+                                ? Icons.check_rounded
+                                : Icons.send_rounded,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
-                      child: const Icon(Icons.send_rounded, color: Colors.white),
-                    ),
+                    ],
                   ),
                 ],
               ),
