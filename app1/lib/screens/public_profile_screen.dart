@@ -8,7 +8,8 @@ import '../models/user.dart' as app_user;
 import '../models/car.dart';
 import 'edit_profile_screen.dart';
 import 'add_car_dialog.dart';
-
+import 'login_screen.dart';
+import 'registration_screen.dart';
 class PublicProfileScreen extends StatefulWidget {
   final String userId;
   final bool isMyProfile;
@@ -38,19 +39,54 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   }
 
   Future<void> _loadUserData() async {
+    if (widget.userId.isEmpty) {
+      if (mounted) setState(() => isLoading = false);
+      return;
+    }
     try {
       final doc = await FirebaseFirestore.instance.collection('users').doc(widget.userId).get();
-      if (doc.exists && mounted) {
-        setState(() {
-          currentUser = app_user.User.fromMap(doc.id, doc.data() as Map<String, dynamic>);
-          isLoading = false;
-        });
+
+      if (mounted) {
+        if (doc.exists) {
+          setState(() {
+            currentUser = app_user.User.fromMap(doc.id, doc.data() as Map<String, dynamic>);
+            isLoading = false;
+          });
+        } else {
+          // ЯКЩО ДОКУМЕНТА НЕМАЄ (новий телефон/акаунт)
+          setState(() {
+            isLoading = false;
+            currentUser = null;
+          });
+
+          // Якщо це мав бути "Мій профіль", але даних немає - виходимо на логін
+          if (widget.isMyProfile) {
+            _showAuthRedirectDialog();
+          }
+        }
       }
     } catch (e) {
       debugPrint("Помилка завантаження: $e");
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
+// Допоміжний метод для редіректу
+  void _showAuthRedirectDialog() {
+    Future.delayed(Duration.zero, () {
+      if (mounted) {
+        fbAuth.FirebaseAuth.instance.signOut(); // На всякий випадок скидаємо сесію
+        Navigator.pushReplacementNamed(context, '/login');
+      }
+    });
+  }
+  void _navigateTo(Widget screen) {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => screen),
+          (route) => false,
+    );
+  }
   // Логіка завантаження фото
   Future<void> _pickAndUploadPhoto() async {
     if (!widget.isMyProfile) return;
@@ -118,13 +154,79 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       }
     }
   }
+  Future<void> _deleteCar(Car car) async {
+    bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("Видалити авто?"),
+        content: Text("Ви впевнені, що хочете видалити ${car.brand} ${car.model}?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Скасувати")),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text("Видалити", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold))
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await FirebaseFirestore.instance.collection("users").doc(widget.userId).update({
+        "cars": FieldValue.arrayRemove([car.toMap()]),
+      });
+      _loadUserData(); // Оновлюємо UI після видалення
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
       return Scaffold(body: Center(child: CircularProgressIndicator(color: primaryTurquoise)));
     }
+    if (currentUser == null) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.account_circle_outlined, size: 100, color: primaryTurquoise.withOpacity(0.5)),
+              const SizedBox(height: 20),
+              const Text("Ви ще не зареєстровані", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              const Text("Увійдіть у наявний акаунт або створіть новий профіль для поїздок",
+                  textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+              const SizedBox(height: 40),
 
+              // КНОПКА ВХОДУ (Заповнена)
+              ElevatedButton(
+                onPressed: () => _navigateTo(const LoginScreen()),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryTurquoise,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 55),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                  elevation: 0,
+                ),
+                child: const Text("Увійти", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: 15),
+
+              // КНОПКА РЕЄСТРАЦІЇ (Контурна)
+              OutlinedButton(
+                onPressed: () => _navigateTo(const RegistrationScreen()),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: primaryTurquoise, width: 2),
+                  minimumSize: const Size(double.infinity, 55),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                ),
+                child: Text("Створити акаунт", style: TextStyle(color: primaryTurquoise, fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
     final user = currentUser!;
 
     return Scaffold(
@@ -231,20 +333,26 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
             ]),
 
             const SizedBox(height: 25),
+            const SizedBox(height: 25),
+            _buildSectionTitle("Транспорт"),
+            const SizedBox(height: 12),
+
+            // Перевіряємо, чи є автомобілі в масиві
             if (user.cars.isNotEmpty) ...[
-              _buildSectionTitle("Транспорт"),
-              const SizedBox(height: 12),
-              ...user.cars.map((car) => Column(
-                    children: [
-                      _buildCarCard(car),
-                      const SizedBox(height: 12),
-                    ],
-                  )),
+              // Проходимо по кожному автомобілю в списку
+              ...user.cars.map((car) => Padding(
+                padding: const EdgeInsets.only(bottom: 12), // Відступ між картками
+                child: _buildCarCard(car),
+              )),
+
+              // Якщо це мій профіль, показуємо кнопку "Додати ще" під списком
               if (widget.isMyProfile) _buildAddCarButton(),
             ] else if (widget.isMyProfile) ...[
-              _buildSectionTitle("Транспорт"),
-              const SizedBox(height: 12),
+              // Якщо машин немає зовсім, показуємо тільки кнопку додавання
               _buildAddCarButton(),
+            ] else ...[
+              // Якщо це чужий профіль і машин немає
+              const Text("Автомобілі не вказані", style: TextStyle(color: Colors.grey)),
             ],
 
             const SizedBox(height: 30),
@@ -270,10 +378,14 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   }
 
   Widget _buildCarCard(Car car) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: Colors.grey.shade100)),
-      color: Colors.white,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade100),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)],
+      ),
       child: ListTile(
         contentPadding: const EdgeInsets.all(12),
         leading: Container(
@@ -282,7 +394,13 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           child: Icon(Icons.directions_car_filled_rounded, color: primaryTurquoise),
         ),
         title: Text("${car.brand} ${car.model}", style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text("Колір: ${car.color ?? '—'} • Рік: ${car.year} • Місць: ${car.seats}"),
+        subtitle: Text("${car.color ?? '—'} • ${car.year} рік • ${car.seats} місць"),
+        trailing: widget.isMyProfile
+            ? IconButton(
+          icon: const Icon(Icons.delete_outline_rounded, color: Colors.grey),
+          onPressed: () => _deleteCar(car),
+        )
+            : null,
       ),
     );
   }

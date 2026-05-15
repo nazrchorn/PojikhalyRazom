@@ -62,6 +62,7 @@ class MyTripsScreen extends StatelessWidget {
       Filter('passengers', arrayContains: user.uid),
     ));
 
+
     return Scaffold(
       backgroundColor: const Color(0xFFFBFBFB),
       appBar: AppBar(
@@ -80,19 +81,24 @@ class MyTripsScreen extends StatelessWidget {
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return const Center(child: Text("Поки що немає запланованих поїздок"));
           }
-
+          final now = DateTime.now();
+          // 1. Отримуємо список документів
           final tripDocs = snapshot.data!.docs;
 
+// 2. Перетворюємо їх на об'єкти Trip та сортуємо
+          final List<Trip> sortedTrips = tripDocs.map((doc) => Trip.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+          // Залишаємо тільки ті, що будуть зараз або в майбутньому
+              .where((trip) => trip.departureTime.isAfter(now))
+              .toList();
+
+// Сортування: найближчі поїздки будуть зверху
+          sortedTrips.sort((a, b) => a.departureTime.compareTo(b.departureTime));
           return ListView.builder(
             padding: const EdgeInsets.all(12),
-            itemCount: tripDocs.length,
+            itemCount: sortedTrips.length, // Використовуємо довжину нового списку
             itemBuilder: (context, index) {
-              final doc = tripDocs[index];
-
-              final Trip tripObject = Trip.fromMap(
-                  doc.data() as Map<String, dynamic>,
-                  doc.id
-              );
+              // Беремо вже готовий об'єкт Trip
+              final tripObject = sortedTrips[index];
 
               final bool isDriver = tripObject.driverId == user.uid;
 
