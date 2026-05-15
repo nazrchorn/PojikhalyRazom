@@ -134,6 +134,7 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
       departureTime: departureTime!,
       availableSeats: seats,
       pricePerSeat: price,
+
       passengers: [],
       routeCities: routeCities,
       createdAt: DateTime.now(),
