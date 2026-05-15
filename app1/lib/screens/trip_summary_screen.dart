@@ -83,7 +83,7 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
 
   void _calculateFairPrice() {
     double distanceKm = (widget.selectedRoute['distance'] ?? 0) / 1000;
-    double consumption = 8.5;
+    double consumption = 9.5;
     double totalTripFuelCost = (distanceKm * consumption / 100) * fuelPrice;
 
     // Стабільне ділення на 3 пасажирські місця
@@ -215,18 +215,24 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
                   children: [
                     const Text("Вільних місць", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                     Row(
-                      children: [
-                        IconButton(icon: const Icon(Icons.remove_circle_outline), color: _primaryTeal,
-                            onPressed: () => setState(() { if (seats > 1) seats--; })),
-                        Text("$seats", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                        IconButton(
-                            icon: const Icon(Icons.add_circle_outline),
-                            color: seats < (maxCarSeats - 1) ? _primaryTeal : Colors.grey,
-                            onPressed: () {
-                              if (seats < (maxCarSeats - 1)) setState(() => seats++);
-                            }
-                        ),
-                      ],
+                      // Оновлений шматочок твого коду:
+                        children: [
+                          IconButton(
+                              icon: const Icon(Icons.remove_circle_outline),
+                              color: _primaryTeal,
+                              onPressed: () => setState(() { if (seats > 1) seats--; })
+                          ),
+                          Text("$seats", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                          IconButton(
+                              icon: const Icon(Icons.add_circle_outline),
+                              // ТУТ ПРИБРАЛИ "- 1"
+                              color: seats < maxCarSeats ? _primaryTeal : Colors.grey,
+                              onPressed: () {
+                                // І ТУТ ТАКОЖ ПРИБРАЛИ "- 1"
+                                if (seats < maxCarSeats) setState(() => seats++);
+                              }
+                          ),
+                        ],
                     )
                   ],
                 ),
