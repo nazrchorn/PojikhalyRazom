@@ -4,14 +4,16 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'screens/main_screen.dart';
 import 'screens/login_screen.dart';
-import 'screens/registration_screen.dart'; // Переконайся, що назва файлу така
+import 'screens/registration_screen.dart';
 import 'screens/route_selection_screen.dart';
+import 'services/notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await NotificationService.instance.initialize();
   runApp(const MyApp());
 }
 

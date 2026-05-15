@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fbAuth;
+import '../services/notification_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -32,6 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (mounted) {
+        await NotificationService.instance.refreshToken();
         Navigator.pop(context, cred.user!.uid);
       }
     } catch (e) {
