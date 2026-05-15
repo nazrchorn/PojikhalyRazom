@@ -7,6 +7,7 @@ import '../models/trip.dart';
 import '../models/user.dart' as app_user;
 import 'public_profile_screen.dart';
 import 'trip_details_map_screen.dart';
+import 'messanger_screen.dart';
 
 class TripDetailScreen extends StatelessWidget {
   final Trip trip;
@@ -242,7 +243,7 @@ class TripDetailScreen extends StatelessWidget {
                         const Text("Пасажири", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 12),
                         SizedBox(
-                          height: 60,
+                          height: 92,
                           child: ListView.builder(
                             scrollDirection: Axis.horizontal,
                             itemCount: passengerIds.length,
@@ -263,6 +264,8 @@ class TripDetailScreen extends StatelessWidget {
   }
 
   Widget _buildBottomPanel(BuildContext context, int liveSeats) {
+    final String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 30),
       decoration: BoxDecoration(
@@ -278,26 +281,59 @@ class TripDetailScreen extends StatelessWidget {
             builder: (context, snapshot) {
               if (!snapshot.hasData) return const SizedBox();
               final user = app_user.User.fromMap(snapshot.data!.id, snapshot.data!.data() as Map<String, dynamic>);
-              return InkWell(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PublicProfileScreen(userId: user.id, isMyProfile: false,))),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 28,
-                      backgroundColor: bgTurquoiseLight,
-                      backgroundImage: (user.photoUrl != null && user.photoUrl!.isNotEmpty) ? NetworkImage(user.photoUrl!) : null,
-                      child: (user.photoUrl == null || user.photoUrl!.isEmpty) ? Icon(Icons.person, color: primaryTurquoise) : null,
+              final bool canMessageDriver =
+                  currentUserId.isNotEmpty && currentUserId != user.id;
+
+              return Column(
+                children: [
+                  InkWell(
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PublicProfileScreen(userId: user.id, isMyProfile: false,))),
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 28,
+                          backgroundColor: bgTurquoiseLight,
+                          backgroundImage: (user.photoUrl != null && user.photoUrl!.isNotEmpty) ? NetworkImage(user.photoUrl!) : null,
+                          child: (user.photoUrl == null || user.photoUrl!.isEmpty) ? Icon(Icons.person, color: primaryTurquoise) : null,
+                        ),
+                        const SizedBox(width: 15),
+                        Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(user.name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                            Text("${user.rating.toStringAsFixed(1)} ★ • ${user.tripsCompleted} поїздок", style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                          ]),
+                        ),
+                        const Icon(Icons.chevron_right, color: Colors.grey),
+                      ],
                     ),
-                    const SizedBox(width: 15),
-                    Expanded(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(user.name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-                        Text("${user.rating.toStringAsFixed(1)} ★ • ${user.tripsCompleted} поїздок", style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
-                      ]),
+                  ),
+                  if (canMessageDriver) ...[
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ConversationScreen(
+                              currentUserId: currentUserId,
+                              partnerId: user.id,
+                              partnerName: user.name,
+                              partnerPhotoUrl: user.photoUrl,
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.chat_bubble_outline_rounded),
+                      label: const Text('Написати водiю'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(48),
+                        foregroundColor: primaryTurquoise,
+                        side: BorderSide(color: primaryTurquoise.withValues(alpha: 0.5)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
                     ),
-                    const Icon(Icons.chevron_right, color: Colors.grey),
                   ],
-                ),
+                ],
               );
             },
           ),
@@ -320,21 +356,65 @@ class TripDetailScreen extends StatelessWidget {
   }
 
   Widget _buildPassengerAvatar(BuildContext context, String passengerId) {
+    final String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+
     return FutureBuilder<DocumentSnapshot>(
       future: FirebaseFirestore.instance.collection('users').doc(passengerId).get(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) return const SizedBox(width: 60);
         final data = snapshot.data!.data() as Map<String, dynamic>;
+        final String userName = (data['name'] as String?)?.trim().isNotEmpty == true
+            ? (data['name'] as String)
+            : 'Користувач';
         final String? photo = data['photoUrl'];
-        return GestureDetector(
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PublicProfileScreen(userId: passengerId, isMyProfile: false,))),
-          child: Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: CircleAvatar(
-              radius: 28,
-              backgroundColor: bgTurquoiseLight,
-              backgroundImage: (photo != null && photo.isNotEmpty) ? NetworkImage(photo) : null,
-              child: (photo == null || photo.isEmpty) ? Icon(Icons.person, color: primaryTurquoise) : null,
+        final bool canMessage = currentUserId.isNotEmpty && currentUserId != passengerId;
+
+        return Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: SizedBox(
+            width: 68,
+            child: Column(
+              children: [
+                GestureDetector(
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PublicProfileScreen(userId: passengerId, isMyProfile: false,))),
+                  child: CircleAvatar(
+                    radius: 28,
+                    backgroundColor: bgTurquoiseLight,
+                    backgroundImage: (photo != null && photo.isNotEmpty) ? NetworkImage(photo) : null,
+                    child: (photo == null || photo.isEmpty) ? Icon(Icons.person, color: primaryTurquoise) : null,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                if (canMessage)
+                  SizedBox(
+                    height: 26,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ConversationScreen(
+                              currentUserId: currentUserId,
+                              partnerId: passengerId,
+                              partnerName: userName,
+                              partnerPhotoUrl: photo,
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.chat_bubble_outline_rounded, size: 12),
+                      label: const Text('Чат', style: TextStyle(fontSize: 10)),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        foregroundColor: primaryTurquoise,
+                        side: BorderSide(color: primaryTurquoise.withValues(alpha: 0.5)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  )
+                else
+                  const SizedBox(height: 26),
+              ],
             ),
           ),
         );
