@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Додали для отримання UID
+import 'package:firebase_auth/firebase_auth.dart';
 import 'search_screen.dart';
 import 'my_trips_screen.dart';
-import 'public_profile_screen.dart'; // Імпортуємо наш новий універсальний екран
+import 'public_profile_screen.dart';
 import 'messanger_screen.dart';
 
 class MainScreen extends StatefulWidget {
@@ -23,13 +23,6 @@ class _MainScreenState extends State<MainScreen> {
     _selectedIndex = widget.initialIndex;
   }
 
-  final List<Widget> _screens = [
-    const SearchScreen(from: "", to: ""), // екран пошуку
-    const MyTripsScreen(),                // екран моїх поїздок
-    const MessangerScreen(),
-    const ProfileScreen(), // екран профілю
-  ];
-
   // Створюємо список екранів через метод, щоб отримати актуальний UID
   List<Widget> _buildScreens() {
     final String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? "";
@@ -37,10 +30,10 @@ class _MainScreenState extends State<MainScreen> {
     return [
       const SearchScreen(from: "", to: ""),
       const MyTripsScreen(),
-      // Ось тут ми викликаємо новий екран профілю
+      const MessangerScreen(),
       PublicProfileScreen(
         userId: currentUserId,
-        isMyProfile: true, // Вмикаємо кнопки редагування та виходу
+        isMyProfile: true,
       ),
     ];
   }
@@ -53,25 +46,20 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Отримуємо список екранів
     final screens = _buildScreens();
 
     return Scaffold(
-      // Використовуємо IndexedStack, щоб стан екранів зберігався при перемиканні
       body: IndexedStack(
         index: _selectedIndex,
         children: screens,
       ),
       bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
         backgroundColor: Colors.white,
-        selectedItemColor: Colors.black87,
-        unselectedItemColor: Colors.grey,
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
-        selectedItemColor: const Color(0xFF5DD9C1), // Твій бірюзовий колір
+        selectedItemColor: const Color(0xFF5DD9C1), // твій бірюзовий
         unselectedItemColor: Colors.grey,
-        type: BottomNavigationBarType.fixed, // Щоб іконки не "стрибали"
+        type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.search),
