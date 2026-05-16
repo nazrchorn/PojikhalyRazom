@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'dart:math' show cos, sqrt, asin;
 import '../models/trip.dart';
 import '../models/user.dart' as app_user;
 import '../main.dart';
+import '../services/trip_service.dart';
+import '../services/user_service.dart';
+import '../services/review_service.dart';
 import 'public_profile_screen.dart';
 import 'trip_details_map_screen.dart';
 import 'messanger_screen.dart';
@@ -14,11 +16,15 @@ import 'review_screen.dart';
 class TripDetailScreen extends StatelessWidget {
   final Trip trip;
   final bool showBookingButton;
+  final String? bookingFromCity;
+  final String? bookingToCity;
 
-  const TripDetailScreen({
+  TripDetailScreen({
     super.key,
     required this.trip,
     this.showBookingButton = false,
+    this.bookingFromCity,
+    this.bookingToCity,
   });
 
   // Палітра кольорів
@@ -28,6 +34,9 @@ class TripDetailScreen extends StatelessWidget {
   final Color backgroundDeep = const Color(0xFFF2F5F8);
   final Color bgTurquoiseLight = const Color(0xFFE0F2F1);
   final Color inactiveGrey = const Color(0xFFB0BEC5); // Сірий для заборон
+  final TripService _tripService = TripService();
+  final UserService _userService = UserService();
+  final ReviewService _reviewService = ReviewService();
 
   // Розрахунок часу прибуття по координатах (виправлено назви полів на lat/lng)
   String _estimateArrivalTime(Trip trip) {
@@ -54,6 +63,36 @@ class TripDetailScreen extends StatelessWidget {
     return "${weekdays[date.weekday - 1]}, ${date.day} ${months[date.month - 1]}";
   }
 
+  String _normalizeCity(String city) {
+    return city.split(',').first.trim().toLowerCase();
+  }
+
+  DateTime _getPlannedArrival(Trip sourceTrip) {
+    final byModel = sourceTrip.getPlannedArrivalTime();
+    if (byModel.isAfter(sourceTrip.departureTime)) {
+      return byModel;
+    }
+    final String hhmm = _estimateArrivalTime(sourceTrip);
+    final parts = hhmm.split(':');
+    final int h = int.tryParse(parts.first) ?? sourceTrip.departureTime.hour;
+    final int m = int.tryParse(parts.length > 1 ? parts[1] : '') ?? sourceTrip.departureTime.minute;
+    return DateTime(
+      sourceTrip.departureTime.year,
+      sourceTrip.departureTime.month,
+      sourceTrip.departureTime.day,
+      h,
+      m,
+    );
+  }
+
+  List<String> _buildRouteCities(Trip sourceTrip) {
+    return <String>[
+      sourceTrip.origin.city,
+      ...sourceTrip.stops.map((s) => s.city),
+      sourceTrip.destination.city,
+    ];
+  }
+
   // ОНОВЛЕНИЙ ФІЛЬТР: Якщо isDisabled = true, то колір сірий
   Widget _buildModernFilter(String text, IconData icon, {bool isAccent = false, bool isDisabled = false}) {
     Color contentColor = isDisabled ? inactiveGrey : (isAccent ? Colors.white : mapIconColor);
@@ -66,12 +105,12 @@ class TripDetailScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(15),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(isDisabled ? 0.02 : 0.04),
+              color: Colors.black.withValues(alpha: isDisabled ? 0.02 : 0.04),
               blurRadius: 8,
               offset: const Offset(0, 3)
           )
         ],
-        border: isDisabled ? Border.all(color: inactiveGrey.withOpacity(0.2)) : null,
+        border: isDisabled ? Border.all(color: inactiveGrey.withValues(alpha: 0.2)) : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -98,13 +137,21 @@ class TripDetailScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15, offset: const Offset(0, 6))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 15, offset: const Offset(0, 6))],
       ),
       child: child,
     );
   }
 
-  Widget _buildTimelinePoint({required String time, required String city, required bool isLast, required VoidCallback onTap, bool isFirst = false}) {
+  Widget _buildTimelinePoint({
+    required String time,
+    required String city,
+    required bool isLast,
+    required VoidCallback onTap,
+    bool isFirst = false,
+    bool isHighlighted = false,
+  }) {
+    final Color markerColor = isHighlighted ? Colors.orange : primaryTurquoise;
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -117,14 +164,26 @@ class TripDetailScreen extends StatelessWidget {
               children: [
                 Container(
                   width: 14, height: 14,
-                  decoration: BoxDecoration(color: isFirst || isLast ? primaryTurquoise : Colors.white, border: Border.all(color: primaryTurquoise, width: 3), shape: BoxShape.circle),
+                  decoration: BoxDecoration(
+                    color: isFirst || isLast || isHighlighted ? markerColor : Colors.white,
+                    border: Border.all(color: markerColor, width: 3),
+                    shape: BoxShape.circle,
+                  ),
                 ),
-                if (!isLast) Container(width: 2, height: 40, color: primaryTurquoise.withOpacity(0.2)),
+                if (!isLast) Container(width: 2, height: 40, color: markerColor.withValues(alpha: 0.2)),
               ],
             ),
             const SizedBox(width: 18),
-            Expanded(child: Text(city, style: TextStyle(fontSize: 17, fontWeight: isFirst || isLast ? FontWeight.bold : FontWeight.w500))),
-            Icon(Icons.map_outlined, color: mapIconColor.withOpacity(0.8), size: 24),
+            Expanded(
+              child: Text(
+                city,
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: isFirst || isLast || isHighlighted ? FontWeight.bold : FontWeight.w500,
+                ),
+              ),
+            ),
+            Icon(Icons.map_outlined, color: mapIconColor.withValues(alpha: 0.8), size: 24),
           ],
         ),
       ),
@@ -133,15 +192,29 @@ class TripDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('trips').doc(trip.id).snapshots(),
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: _tripService.watchTripData(trip.id),
       builder: (context, snapshot) {
         int liveSeats = trip.availableSeats;
         List<dynamic> passengerIds = [];
-        if (snapshot.hasData && snapshot.data!.exists) {
-          liveSeats = snapshot.data!['availableSeats'] ?? trip.availableSeats;
-          passengerIds = snapshot.data!['passengers'] ?? [];
+        final liveData = snapshot.data;
+        final String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+        String? currentSegmentFrom = bookingFromCity;
+        String? currentSegmentTo = bookingToCity;
+        if (snapshot.hasData && liveData != null) {
+          liveSeats = liveData['availableSeats'] ?? trip.availableSeats;
+          passengerIds = List<dynamic>.from(liveData['passengers'] ?? []);
+          final segmentsRaw = liveData['passengerSegments'];
+          if (segmentsRaw is Map && currentUserId.isNotEmpty && segmentsRaw[currentUserId] is Map) {
+            final segment = Map<String, dynamic>.from(segmentsRaw[currentUserId] as Map);
+            currentSegmentFrom = segment['fromCity'] as String? ?? currentSegmentFrom;
+            currentSegmentTo = segment['toCity'] as String? ?? currentSegmentTo;
+          }
         }
+
+        final routeCities = _buildRouteCities(trip);
+        final DateTime arrivalTime = _getPlannedArrival(trip);
+        final int totalMinutes = arrivalTime.difference(trip.departureTime).inMinutes;
 
         return Scaffold(
           backgroundColor: backgroundDeep,
@@ -180,16 +253,27 @@ class TripDetailScreen extends StatelessWidget {
                       const SizedBox(height: 12),
                       _cardWrapper(
                         child: Column(
-                          children: [
-                            _buildTimelinePoint(
-                              time: "${trip.departureTime.hour}:${trip.departureTime.minute.toString().padLeft(2,'0')}",
-                              city: trip.origin.city, isFirst: true, isLast: false, onTap: () => _openMap(context),
-                            ),
-                            _buildTimelinePoint(
-                              time: _estimateArrivalTime(trip),
-                              city: trip.destination.city, isFirst: false, isLast: true, onTap: () => _openMap(context),
-                            ),
-                          ],
+                          children: List.generate(routeCities.length, (index) {
+                            final int minutesFromStart = routeCities.length <= 1
+                                ? 0
+                                : ((totalMinutes * index) / (routeCities.length - 1)).round();
+                            final DateTime pointTime = trip.departureTime.add(Duration(minutes: minutesFromStart));
+                            final String pointTimeText =
+                                '${pointTime.hour}:${pointTime.minute.toString().padLeft(2, '0')}';
+                            final String cityName = routeCities[index];
+                            final bool highlighted =
+                                _normalizeCity(cityName) == _normalizeCity(currentSegmentFrom ?? '') ||
+                                _normalizeCity(cityName) == _normalizeCity(currentSegmentTo ?? '');
+
+                            return _buildTimelinePoint(
+                              time: pointTimeText,
+                              city: cityName,
+                              isFirst: index == 0,
+                              isLast: index == routeCities.length - 1,
+                              isHighlighted: highlighted,
+                              onTap: () => _openMap(context, currentSegmentFrom, currentSegmentTo),
+                            );
+                          }),
                         ),
                       ),
                       const SizedBox(height: 25),
@@ -237,7 +321,7 @@ class TripDetailScreen extends StatelessWidget {
                               FontAwesomeIcons.child,
                               isDisabled: !trip.allowChildren
                           ),
-                          _buildModernFilter("Не палити", FontAwesomeIcons.smokingBan),
+                          _buildModernFilter("Не палити", FontAwesomeIcons.banSmoking),
                         ],
                       ),
                       if (passengerIds.isNotEmpty) ...[
@@ -269,23 +353,23 @@ class TripDetailScreen extends StatelessWidget {
     final String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
     final bool isDriver = trip.driverId == currentUserId;
     final bool isPassenger = trip.passengers.contains(currentUserId);
-    final bool isTripCompleted = trip.status == 'completed';
+    final bool isTripCompleted = trip.status == 'completed' || trip.isCompletedByTime(DateTime.now());
 
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 30),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 15)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 15)],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          FutureBuilder<DocumentSnapshot>(
-            future: FirebaseFirestore.instance.collection('users').doc(trip.driverId).get(),
+          FutureBuilder<app_user.User?>(
+            future: _userService.loadUser(trip.driverId),
             builder: (context, snapshot) {
-              if (!snapshot.hasData) return const SizedBox();
-              final user = app_user.User.fromMap(snapshot.data!.id, snapshot.data!.data() as Map<String, dynamic>);
+              final user = snapshot.data;
+              if (user == null) return const SizedBox();
               final bool canMessageDriver =
                   currentUserId.isNotEmpty && currentUserId != user.id;
 
@@ -386,15 +470,15 @@ class TripDetailScreen extends StatelessWidget {
           // Кнопка відгуку
           if (isTripCompleted && (isDriver || isPassenger) && currentUserId.isNotEmpty) ...[
             const SizedBox(height: 12),
-            FutureBuilder<QuerySnapshot>(
-              future: FirebaseFirestore.instance
-                  .collection('reviews')
-                  .where('tripId', isEqualTo: trip.id)
-                  .where('fromUserId', isEqualTo: currentUserId)
-                  .get(),
+            FutureBuilder<List<Map<String, dynamic>>>(
+              future: _loadReviewTargets(currentUserId),
               builder: (context, snapshot) {
-                final hasReviewedAlready = snapshot.hasData && snapshot.data!.docs.isNotEmpty;
-                if (hasReviewedAlready) {
+                final targets = snapshot.data ?? const <Map<String, dynamic>>[];
+                if (targets.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+                final bool allReviewed = targets.every((t) => t['reviewed'] == true);
+                if (allReviewed) {
                   return Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -411,7 +495,7 @@ class TripDetailScreen extends StatelessWidget {
                 }
 
                 return ElevatedButton(
-                  onPressed: () => _openReviewScreen(context),
+                  onPressed: () => _openReviewTargetPicker(context),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.amber,
                     minimumSize: const Size.fromHeight(48),
@@ -422,7 +506,7 @@ class TripDetailScreen extends StatelessWidget {
                     children: [
                       Icon(Icons.star, color: Colors.white, size: 20),
                       SizedBox(width: 8),
-                      Text('Написати відгук', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                      Text('Залишити відгук', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                     ],
                   ),
                 );
@@ -437,11 +521,11 @@ class TripDetailScreen extends StatelessWidget {
   Widget _buildPassengerAvatar(BuildContext context, String passengerId) {
     final String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
 
-    return FutureBuilder<DocumentSnapshot>(
-      future: FirebaseFirestore.instance.collection('users').doc(passengerId).get(),
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _userService.loadUserData(passengerId),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const SizedBox(width: 60);
-        final data = snapshot.data!.data() as Map<String, dynamic>;
+        final data = snapshot.data;
+        if (data == null) return const SizedBox(width: 60);
         final String userName = (data['name'] as String?)?.trim().isNotEmpty == true
             ? (data['name'] as String)
             : 'Користувач';
@@ -501,8 +585,18 @@ class TripDetailScreen extends StatelessWidget {
     );
   }
 
-  void _openMap(BuildContext context) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => TripDetailsMapScreen(trip: trip, apiKey: MyApp.orsKey)));
+  void _openMap(BuildContext context, String? highlightedFromCity, String? highlightedToCity) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TripDetailsMapScreen(
+          trip: trip,
+          apiKey: MyApp.orsKey,
+          highlightedFromCity: highlightedFromCity,
+          highlightedToCity: highlightedToCity,
+        ),
+      ),
+    );
   }
 
   Future<void> _handleBooking(BuildContext context) async {
@@ -510,14 +604,12 @@ class TripDetailScreen extends StatelessWidget {
     if (user == null) return;
     try {
       showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
-      final tripRef = FirebaseFirestore.instance.collection('trips').doc(trip.id);
-      await FirebaseFirestore.instance.runTransaction((tx) async {
-        final snap = await tx.get(tripRef);
-        final int seats = snap.data()?['availableSeats'] ?? 0;
-        final List pass = snap.data()?['passengers'] ?? [];
-        if (pass.contains(user.uid) || seats <= 0) throw "Error";
-        tx.update(tripRef, {'availableSeats': seats - 1, 'passengers': FieldValue.arrayUnion([user.uid])});
-      });
+      await _tripService.bookSeat(
+        tripId: trip.id,
+        userId: user.uid,
+        fromCity: bookingFromCity,
+        toCity: bookingToCity,
+      );
       if (context.mounted) Navigator.pop(context);
     } catch (e) {
       if (context.mounted) Navigator.pop(context);
@@ -547,17 +639,11 @@ class TripDetailScreen extends StatelessWidget {
     );
 
     if (confirm != true) return;
+    if (!context.mounted) return;
 
     try {
       showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
-      final tripRef = FirebaseFirestore.instance.collection('trips').doc(trip.id);
-      await FirebaseFirestore.instance.runTransaction((tx) async {
-        final snap = await tx.get(tripRef);
-        final int seats = snap.data()?['availableSeats'] ?? 0;
-        final List pass = List.from(snap.data()?['passengers'] ?? []);
-        pass.remove(user.uid);
-        tx.update(tripRef, {'availableSeats': seats + 1, 'passengers': pass});
-      });
+      await _tripService.cancelBooking(tripId: trip.id, userId: user.uid);
       if (context.mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -589,14 +675,14 @@ class TripDetailScreen extends StatelessWidget {
     );
 
     if (confirm != true) return;
+    if (!context.mounted) return;
 
     try {
       showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
-      await FirebaseFirestore.instance.collection('trips').doc(trip.id).update({
-        'status': 'cancelled',
-        'cancelledBy': FirebaseAuth.instance.currentUser?.uid,
-        'cancelledAt': DateTime.now(),
-      });
+      await _tripService.cancelTrip(
+        tripId: trip.id,
+        cancelledBy: FirebaseAuth.instance.currentUser?.uid ?? '',
+      );
       if (context.mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -608,33 +694,104 @@ class TripDetailScreen extends StatelessWidget {
     }
   }
 
-  void _openReviewScreen(BuildContext context) {
+  Future<List<Map<String, dynamic>>> _loadReviewTargets(String currentUserId) async {
+    if (currentUserId.isEmpty) {
+      return <Map<String, dynamic>>[];
+    }
+
+    final List<String> targetIds = currentUserId == trip.driverId
+        ? List<String>.from(trip.passengers)
+        : <String>[trip.driverId];
+
+    final List<Map<String, dynamic>> targets = <Map<String, dynamic>>[];
+    for (final targetId in targetIds) {
+      final userData = await _userService.loadUserData(targetId);
+      if (userData == null) {
+        continue;
+      }
+      final reviewed = await _reviewService.hasUserReviewedTripForTarget(
+        fromUserId: currentUserId,
+        toUserId: targetId,
+        tripId: trip.id,
+      );
+
+      targets.add(<String, dynamic>{
+        'id': targetId,
+        'name': userData['name'] ?? 'Користувач',
+        'photoUrl': userData['photoUrl'],
+        'reviewed': reviewed,
+      });
+    }
+
+    return targets;
+  }
+
+  Future<void> _openReviewTargetPicker(BuildContext context) async {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
-    final toUserId = (trip.driverId == currentUserId) 
-        ? (trip.passengers.isNotEmpty ? trip.passengers.first : trip.driverId)
-        : trip.driverId;
-    
-    final role = trip.driverId == currentUserId ? 'driver' : 'passenger';
+    if (currentUserId.isEmpty) {
+      return;
+    }
 
-    Future.delayed(Duration.zero, () async {
-      final toUserDoc = await FirebaseFirestore.instance.collection('users').doc(toUserId).get();
-      final toUserData = toUserDoc.data() as Map<String, dynamic>;
+    final targets = await _loadReviewTargets(currentUserId);
+    if (!context.mounted || targets.isEmpty) {
+      return;
+    }
 
-      if (context.mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ReviewScreen(
-              tripId: trip.id,
-              fromUserId: currentUserId,
-              toUserId: toUserId,
-              toUserName: toUserData['name'] ?? 'Користувач',
-              toUserPhotoUrl: toUserData['photoUrl'],
-              role: role,
-            ),
+    final selectedTarget = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Кому залишити відгук', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              ...targets.map((target) {
+                final bool reviewed = target['reviewed'] == true;
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    backgroundColor: bgTurquoiseLight,
+                    backgroundImage: target['photoUrl'] != null ? NetworkImage(target['photoUrl']) : null,
+                    child: target['photoUrl'] == null ? Icon(Icons.person, color: primaryTurquoise) : null,
+                  ),
+                  title: Text(target['name'] as String),
+                  subtitle: Text(reviewed ? 'Відгук вже залишено' : 'Доступно для оцінки'),
+                  trailing: reviewed
+                      ? Icon(Icons.check_circle, color: Colors.green.shade600)
+                      : const Icon(Icons.chevron_right),
+                  onTap: reviewed ? null : () => Navigator.pop(context, target),
+                );
+              }),
+            ],
           ),
         );
-      }
-    });
+      },
+    );
+
+    if (!context.mounted || selectedTarget == null) {
+      return;
+    }
+
+    final String role = trip.driverId == currentUserId ? 'driver' : 'passenger';
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ReviewScreen(
+          tripId: trip.id,
+          fromUserId: currentUserId,
+          toUserId: selectedTarget['id'] as String,
+          toUserName: selectedTarget['name'] as String,
+          toUserPhotoUrl: selectedTarget['photoUrl'] as String?,
+          role: role,
+        ),
+      ),
+    );
   }
 }

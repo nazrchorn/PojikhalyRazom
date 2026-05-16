@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:convert';
 import '../models/trip.dart';
+import '../services/trip_service.dart';
 import 'trip_details_screen.dart';
 
 class TripsListScreen extends StatelessWidget {
   final String fromCity;
   final String toCity;
 
-  const TripsListScreen({
-    Key? key,
+  TripsListScreen({
+    super.key,
     required this.fromCity,
     required this.toCity,
-  }) : super(key: key);
+  });
 
   final Color primaryTurquoise = const Color(0xFF5DD9C1);
+  final TripService _tripService = TripService();
 
   // Допоміжна функція для очищення назви міста (Львів, Львівська обл -> Львів)
   String _cleanCityName(String city) {
@@ -37,10 +37,8 @@ class TripsListScreen extends StatelessWidget {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black87),
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        // Завантажуємо поїздки. Фільтрацію по містах робимо в коді (Client-side),
-        // щоб уникнути проблем з точним збігом рядків у Firebase.
-        stream: FirebaseFirestore.instance.collection("trips").snapshots(),
+      body: StreamBuilder<List<Trip>>(
+        stream: _tripService.getAllTrips(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return const Center(child: Text("Помилка завантаження даних"));
@@ -49,14 +47,11 @@ class TripsListScreen extends StatelessWidget {
             return const Center(child: CircularProgressIndicator(color: Color(0xFF5DD9C1)));
           }
 
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return _buildEmptyState();
           }
 
-          // 1. Перетворюємо документи в об'єкти Trip
-          final allTrips = snapshot.data!.docs.map((doc) {
-            return Trip.fromMap(doc.data() as Map<String, dynamic>, doc.id);
-          }).toList();
+          final allTrips = snapshot.data!;
 
           // 2. Гнучка фільтрація
           final filteredTrips = allTrips.where((trip) {
@@ -95,7 +90,12 @@ class TripsListScreen extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => TripDetailScreen(trip: trip, showBookingButton: true,),
+                      builder: (context) => TripDetailScreen(
+                        trip: trip,
+                        showBookingButton: true,
+                        bookingFromCity: fromCity,
+                        bookingToCity: toCity,
+                      ),
                     ),
                   );
                 },
@@ -107,7 +107,7 @@ class TripsListScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
+                        color: Colors.black.withValues(alpha: 0.04),
                         blurRadius: 20,
                         offset: const Offset(0, 8),
                       ),

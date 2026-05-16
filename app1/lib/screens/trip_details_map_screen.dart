@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import '../models/trip.dart';
+import '../services/route_service.dart';
 
 class TripDetailsMapScreen extends StatefulWidget {
   final Trip trip;
   final String apiKey;
+  final String? highlightedFromCity;
+  final String? highlightedToCity;
 
   const TripDetailsMapScreen({
     super.key,
     required this.trip,
     required this.apiKey,
+    this.highlightedFromCity,
+    this.highlightedToCity,
   });
 
   @override
@@ -21,45 +24,74 @@ class TripDetailsMapScreen extends StatefulWidget {
 
 class _TripDetailsMapScreenState extends State<TripDetailsMapScreen> {
   final MapController _mapController = MapController();
+  final RouteService _routeService = RouteService();
   List<LatLng> polylinePoints = [];
+  List<LatLng> segmentPolylinePoints = [];
   double? duration;
   double? distance;
 
+  String _normalizeCity(String city) => city.split(',').first.trim().toLowerCase();
+
+  LatLng? _resolveCityPoint(String? city) {
+    if (city == null || city.trim().isEmpty) {
+      return null;
+    }
+    final normalized = _normalizeCity(city);
+    final candidates = [
+      widget.trip.origin,
+      ...widget.trip.stops,
+      widget.trip.destination,
+    ];
+    for (final point in candidates) {
+      if (_normalizeCity(point.city) == normalized) {
+        return LatLng(point.lat, point.lng);
+      }
+    }
+    return null;
+  }
+
   Future<void> _fetchRoute() async {
-    final start = "${widget.trip.origin.lng},${widget.trip.origin.lat}";
-    final end = "${widget.trip.destination.lng},${widget.trip.destination.lat}";
-
-    final url =
-        "https://api.openrouteservice.org/v2/directions/driving-car"
-        "?api_key=${widget.apiKey}&start=$start&end=$end";
-
     try {
-      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+      final routeData = await _routeService.fetchRouteForTrip(
+        startLat: widget.trip.origin.lat,
+        startLng: widget.trip.origin.lng,
+        endLat: widget.trip.destination.lat,
+        endLng: widget.trip.destination.lng,
+        apiKey: widget.apiKey,
+      );
 
       if (!mounted) return;
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final features = data['features'] as List?;
-        if (features == null || features.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Маршрутів не знайдено")),
-          );
-          return;
-        }
-
-        final coords = features[0]['geometry']['coordinates'] as List;
-        final polyline = coords.map((c) => LatLng(c[1], c[0])).toList();
-
-        setState(() {
-          polylinePoints = polyline;
-          duration = features[0]['properties']['summary']['duration'];
-          distance = features[0]['properties']['summary']['distance'];
-        });
-      } else {
+      if (routeData == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("HTTP ${response.statusCode}: ${response.reasonPhrase}")),
+          const SnackBar(content: Text("Маршрутів не знайдено")),
         );
+        return;
+      }
+
+      setState(() {
+        polylinePoints = List<LatLng>.from(routeData['polyline'] as List<LatLng>);
+        duration = (routeData['duration'] as num?)?.toDouble();
+        distance = (routeData['distance'] as num?)?.toDouble();
+      });
+
+      final fromPoint = _resolveCityPoint(widget.highlightedFromCity);
+      final toPoint = _resolveCityPoint(widget.highlightedToCity);
+      if (fromPoint != null && toPoint != null) {
+        final segmentRoute = await _routeService.fetchRouteForTrip(
+          startLat: fromPoint.latitude,
+          startLng: fromPoint.longitude,
+          endLat: toPoint.latitude,
+          endLng: toPoint.longitude,
+          apiKey: widget.apiKey,
+        );
+
+        if (!mounted) return;
+        if (segmentRoute != null) {
+          setState(() {
+            segmentPolylinePoints = List<LatLng>.from(segmentRoute['polyline'] as List<LatLng>);
+          });
+        }
       }
     } catch (e) {
       if (!mounted) return;
@@ -79,6 +111,8 @@ class _TripDetailsMapScreenState extends State<TripDetailsMapScreen> {
   Widget build(BuildContext context) {
     final durationMin = duration != null ? (duration! / 60).round() : null;
     final distanceKm = distance != null ? (distance! / 1000).toStringAsFixed(1) : null;
+    final fromPoint = _resolveCityPoint(widget.highlightedFromCity);
+    final toPoint = _resolveCityPoint(widget.highlightedToCity);
 
     return Scaffold(
       appBar: AppBar(title: const Text("Маршрут поїздки")),
@@ -113,6 +147,16 @@ class _TripDetailsMapScreenState extends State<TripDetailsMapScreen> {
                     ),
                   ],
                 ),
+              if (segmentPolylinePoints.isNotEmpty)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: segmentPolylinePoints,
+                      strokeWidth: 4,
+                      color: Colors.orange,
+                    ),
+                  ],
+                ),
 
               MarkerLayer(
                 markers: [
@@ -130,6 +174,26 @@ class _TripDetailsMapScreenState extends State<TripDetailsMapScreen> {
                     child: const Icon(Icons.location_on,
                         color: Colors.red, size: 40),
                   ),
+                  ...widget.trip.stops.map((stop) => Marker(
+                        point: LatLng(stop.lat, stop.lng),
+                        width: 34,
+                        height: 34,
+                        child: const Icon(Icons.trip_origin, color: Color(0xFF4DB6AC), size: 20),
+                      )),
+                  if (fromPoint != null)
+                    Marker(
+                      point: fromPoint,
+                      width: 38,
+                      height: 38,
+                      child: const Icon(Icons.flag_circle, color: Colors.blue, size: 30),
+                    ),
+                  if (toPoint != null)
+                    Marker(
+                      point: toPoint,
+                      width: 38,
+                      height: 38,
+                      child: const Icon(Icons.flag_circle, color: Colors.orange, size: 30),
+                    ),
                 ],
               ),
             ],
@@ -142,7 +206,7 @@ class _TripDetailsMapScreenState extends State<TripDetailsMapScreen> {
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(16),
                     topRight: Radius.circular(16),

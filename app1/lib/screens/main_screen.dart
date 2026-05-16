@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/chat_service.dart';
 import 'search_screen.dart';
 import 'my_trips_screen.dart';
 import 'public_profile_screen.dart';
@@ -17,6 +17,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   late int _selectedIndex;
+  final ChatService _chatService = ChatService();
 
   @override
   void initState() {
@@ -43,15 +44,6 @@ class _MainScreenState extends State<MainScreen> {
     setState(() {
       _selectedIndex = index;
     });
-  }
-
-  Stream<int> _unreadMessagesCountStream(String uid) {
-    return FirebaseFirestore.instance
-        .collection('messages')
-        .where('receiverId', isEqualTo: uid)
-        .where('isRead', isEqualTo: false)
-        .snapshots()
-        .map((snapshot) => snapshot.docs.length);
   }
 
   Widget _chatTabIcon(int unreadCount) {
@@ -101,7 +93,7 @@ class _MainScreenState extends State<MainScreen> {
       bottomNavigationBar: StreamBuilder<int>(
         stream: currentUserId.isEmpty
             ? Stream<int>.value(0)
-            : _unreadMessagesCountStream(currentUserId),
+            : _chatService.getUnreadMessagesCount(currentUserId),
         initialData: 0,
         builder: (context, snapshot) {
           final unreadCount = snapshot.data ?? 0;

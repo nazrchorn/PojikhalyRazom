@@ -6,6 +6,8 @@ This folder contains Firebase Cloud Functions for chat push notifications.
 
 - `onNewMessagePush`: Firestore trigger on `messages/{messageId}`. Sends push to `receiverId` using `users/{uid}.fcmToken`.
 - `sendTestPush`: Callable function for quick verification (sends push to the signed-in caller).
+- `completeFinishedTrips`: Scheduled job (`every 5 minutes`) that sets `trips.status = completed` when `departureTime + estimatedDurationMinutes` is in the past.
+  - Also backfills `estimatedDurationMinutes` for old active trips if the field is missing (estimated from route points).
 
 ## Required Firestore fields
 
@@ -18,6 +20,12 @@ This folder contains Firebase Cloud Functions for chat push notifications.
 ### `users/{uid}`
 
 - `fcmToken: string` (written by Flutter app on login/init)
+
+### `trips/{tripId}`
+
+- `status: string` (`active` / `completed` / `cancelled`)
+- `departureTime: Timestamp|string`
+- `estimatedDurationMinutes: number` (saved from route duration)
 
 ## Local commands
 
@@ -50,6 +58,12 @@ npm run deploy
 - sendTestPush:
 * Callable function for quick testing
 * Sends push to currently signed-in user’s own token
+- completeFinishedTrips:
+* Runs every 5 minutes in `Europe/Kyiv`
+* Reads active trips
+* If `estimatedDurationMinutes` missing, calculates and saves it from `origin/stops/destination`
+* Marks trip as `completed` when planned arrival has passed
+* Writes `completedAt` server timestamp
 
 ## Deploy instructions (PowerShell)
 - Set-Location "C:\Work\Chorn\!Poikhaly\PojikhalyRazom\app1"

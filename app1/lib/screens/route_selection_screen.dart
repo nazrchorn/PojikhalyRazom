@@ -2,9 +2,7 @@ import 'package:app1/screens/stops_selection_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'trip_summary_screen.dart';
+import '../services/route_service.dart';
 
 class RouteSelectionScreen extends StatefulWidget {
   final Map<String, dynamic> origin;
@@ -24,53 +22,30 @@ class RouteSelectionScreen extends StatefulWidget {
 
 class _RouteSelectionScreenState extends State<RouteSelectionScreen> {
   final MapController _mapController = MapController();
+  final RouteService _routeService = RouteService();
   List<Map<String, dynamic>> routes = [];
   int? selectedRouteIndex;
 
   Future<void> _fetchRoutes() async {
-    final start = "${widget.origin['lng']},${widget.origin['lat']}";
-    final end = "${widget.destination['lng']},${widget.destination['lat']}";
-
-    final url =
-        "https://api.openrouteservice.org/v2/directions/driving-car"
-        "?api_key=${widget.apiKey}&start=$start&end=$end&alternative_routes=true";
-
     try {
-      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+      final newRoutes = await _routeService.fetchAlternativeRoutes(
+        origin: widget.origin,
+        destination: widget.destination,
+        apiKey: widget.apiKey,
+      );
 
       if (!mounted) return;
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final features = data['features'] as List?;
-        if (features == null || features.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Маршрутів не знайдено")),
-          );
-          return;
-        }
-
-        // route_selection_screen.dart
-
-        final newRoutes = features.map((f) {
-          final coords = f['geometry']['coordinates'] as List;
-          final polyline = coords.map((c) => LatLng(c[1], c[0])).toList();
-          return {
-            "polyline": polyline,
-            "geometry": f['geometry'], // <--- ОБОВ'ЯЗКОВО ДОДАЙТЕ ЦЕЙ РЯДОК
-            "duration": f['properties']['summary']['duration'],
-            "distance": f['properties']['summary']['distance'],
-          };
-        }).toList();
-
-        setState(() {
-          routes = newRoutes;
-        });
-      } else {
+      if (newRoutes.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("HTTP ${response.statusCode}: ${response.reasonPhrase}")),
+          const SnackBar(content: Text("Маршрутів не знайдено")),
         );
+        return;
       }
+
+      setState(() {
+        routes = newRoutes;
+      });
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -81,7 +56,6 @@ class _RouteSelectionScreenState extends State<RouteSelectionScreen> {
 
   void _confirmRoute() {
     if (selectedRouteIndex == null) return;
-    final selectedRoute = routes[selectedRouteIndex!];
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -97,23 +71,6 @@ class _RouteSelectionScreenState extends State<RouteSelectionScreen> {
 
 
 
-  /// Перевіряє, чи точка кліку близька до маршруту
-  void _handleTap(TapPosition tapPosition, LatLng latlng) {
-    const threshold = 50.0; // у метрах
-    final distance = Distance();
-
-    for (var i = 0; i < routes.length; i++) {
-      final polyline = routes[i]['polyline'] as List<LatLng>;
-      for (var j = 0; j < polyline.length - 1; j++) {
-        final d = distance.distance(latlng, polyline[j]);
-        if (d < threshold) {
-          setState(() => selectedRouteIndex = i);
-
-          return;
-        }
-      }
-    }
-  }
 
   @override
   void initState() {
@@ -177,7 +134,7 @@ class _RouteSelectionScreenState extends State<RouteSelectionScreen> {
               right: 0,
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.9),
+                  color: Colors.white.withValues(alpha: 0.9),
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(16),
                     topRight: Radius.circular(16),

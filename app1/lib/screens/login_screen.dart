@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart' as fbAuth;
 import '../services/notification_service.dart';
+import '../services/auth_service.dart';
+import 'registration_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,6 +14,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   bool _isPasswordVisible = false;
+  final AuthService _authService = AuthService();
 
   // Твоя фірмова палітра
   final Color primaryTurquoise = const Color(0xFF5DD9C1);
@@ -27,16 +29,20 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     try {
-      fbAuth.UserCredential cred = await fbAuth.FirebaseAuth.instance.signInWithEmailAndPassword(
+      await _authService.signInWithEmailAndPassword(
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
       );
 
-      if (mounted) {
-        await NotificationService.instance.refreshToken();
-        Navigator.pop(context, cred.user!.uid);
+      await NotificationService.instance.refreshToken();
+      if (!mounted) {
+        return;
       }
+      Navigator.of(context).pushNamedAndRemoveUntil('/main', (route) => false);
     } catch (e) {
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Невірний email або пароль")),
       );
@@ -64,7 +70,7 @@ class _LoginScreenState extends State<LoginScreen> {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: primaryTurquoise.withOpacity(0.1),
+                  color: primaryTurquoise.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(Icons.directions_car_rounded, size: 60, color: primaryTurquoise),
@@ -117,9 +123,13 @@ class _LoginScreenState extends State<LoginScreen> {
 
               // Кнопка переходу (можна додати навігацію на реєстрацію)
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const RegistrationScreen()),
+                  );
+                },
                 child: Text(
-                  "Ще немає акаунту? Створити",
+                  "Ще немає акаунту? Створи",
                   style: TextStyle(color: Colors.blueGrey.shade600, fontWeight: FontWeight.w500),
                 ),
               ),
@@ -145,7 +155,7 @@ class _LoginScreenState extends State<LoginScreen> {
         borderRadius: BorderRadius.circular(15),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           )

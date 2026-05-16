@@ -3,6 +3,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class ChatService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  /// Потік кількості непрочитаних повідомлень користувача
+  Stream<int> getUnreadMessagesCount(String uid) {
+    return _firestore
+        .collection('messages')
+        .where('receiverId', isEqualTo: uid)
+        .where('isRead', isEqualTo: false)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.length);
+  }
+
   /// Отримати поток повідомлень для користувача
   Stream<QuerySnapshot<Map<String, dynamic>>> getMessagesForUser(String uid) {
     return _firestore

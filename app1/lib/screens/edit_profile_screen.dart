@@ -1,9 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user.dart';
+import '../services/user_service.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final User user;
@@ -23,6 +22,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late String _musicType;
 
   File? _selectedImage;
+  final UserService _userService = UserService();
   final Color primaryTurquoise = const Color(0xFF5DD9C1);
   final Color bgTurquoiseLight = const Color(0xFFE8F8F5);
 
@@ -149,7 +149,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)],
       ),
       child: TextField(
         controller: controller,
@@ -169,7 +169,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)],
       ),
       child: Column(children: children),
     );
@@ -180,7 +180,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       title: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
       secondary: Icon(icon, color: primaryTurquoise),
       value: value,
-      activeColor: primaryTurquoise,
+      activeThumbColor: primaryTurquoise,
       onChanged: onChanged,
     );
   }
@@ -189,9 +189,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     String? photoUrl = widget.user.photoUrl;
 
     if (_selectedImage != null) {
-      final ref = FirebaseStorage.instance.ref().child("profile_photos/${widget.user.id}.jpg");
-      await ref.putFile(_selectedImage!);
-      photoUrl = await ref.getDownloadURL();
+      photoUrl = await _userService.uploadProfilePhoto(
+        userId: widget.user.id,
+        file: _selectedImage!,
+      );
     }
 
     final updatedUser = User(
@@ -212,7 +213,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       tripsCompleted: widget.user.tripsCompleted,
     );
 
-    await FirebaseFirestore.instance.collection("users").doc(updatedUser.id).set(updatedUser.toMap());
+    await _userService.upsertUser(updatedUser);
+    if (!mounted) {
+      return;
+    }
     Navigator.pop(context, updatedUser);
   }
 }

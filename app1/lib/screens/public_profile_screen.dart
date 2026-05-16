@@ -1,11 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart' as fbAuth;
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:image_picker/image_picker.dart';
 import '../models/user.dart' as app_user;
 import '../models/car.dart';
+import '../services/user_service.dart';
+import '../services/review_service.dart';
 import 'edit_profile_screen.dart';
 import 'add_car_dialog.dart';
 import 'login_screen.dart';
@@ -29,6 +29,8 @@ class PublicProfileScreen extends StatefulWidget {
 class _PublicProfileScreenState extends State<PublicProfileScreen> {
   app_user.User? currentUser;
   bool isLoading = true;
+  final UserService _userService = UserService();
+  final ReviewService _reviewService = ReviewService();
 
   // Твої фірмові кольори
   final Color primaryTurquoise = const Color(0xFF5DD9C1);
@@ -46,12 +48,12 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       return;
     }
     try {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(widget.userId).get();
+      final loadedUser = await _userService.loadUser(widget.userId);
 
       if (mounted) {
-        if (doc.exists) {
+        if (loadedUser != null) {
           setState(() {
-            currentUser = app_user.User.fromMap(doc.id, doc.data() as Map<String, dynamic>);
+            currentUser = loadedUser;
             isLoading = false;
           });
         } else {
@@ -77,7 +79,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   void _showAuthRedirectDialog() {
     Future.delayed(Duration.zero, () {
       if (mounted) {
-        fbAuth.FirebaseAuth.instance.signOut(); // На всякий випадок скидаємо сесію
+        fb_auth.FirebaseAuth.instance.signOut(); // На всякий випадок скидаємо сесію
         Navigator.pushReplacementNamed(context, '/login');
       }
     });
@@ -99,20 +101,19 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
 
       if (pickedFile != null) {
         final file = File(pickedFile.path);
-        final ref = FirebaseStorage.instance
-            .ref()
-            .child("profile_photos/${widget.userId}/avatar.jpg");
+        final url = await _userService.uploadProfilePhoto(userId: widget.userId, file: file);
+        await _userService.updatePhotoUrl(widget.userId, url);
 
-        await ref.putFile(file);
-        final url = await ref.getDownloadURL();
-
-        await FirebaseFirestore.instance.collection("users").doc(widget.userId).update({
-          "photoUrl": url,
-        });
+        if (!mounted) {
+          return;
+        }
 
         _loadUserData(); // Перезавантажуємо дані, щоб оновити UI
       }
     } catch (e) {
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Помилка завантаження фото")));
     }
   }
@@ -126,13 +127,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
 
     if (newCar != null && mounted) {
       try {
-        // Додаємо новий автомобіль до списку замість заміни
-        await FirebaseFirestore.instance
-            .collection("users")
-            .doc(widget.userId)
-            .update({
-          "cars": FieldValue.arrayUnion([newCar.toMap()]),
-        });
+        await _userService.addCar(widget.userId, newCar);
 
         _loadUserData(); // Перезавантажуємо дані, щоб оновити UI
         if (mounted) {
@@ -174,9 +169,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     );
 
     if (confirm == true) {
-      await FirebaseFirestore.instance.collection("users").doc(widget.userId).update({
-        "cars": FieldValue.arrayRemove([car.toMap()]),
-      });
+      await _userService.deleteCar(widget.userId, car);
       _loadUserData(); // Оновлюємо UI після видалення
     }
   }
@@ -197,7 +190,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.02),
+              color: Colors.black.withValues(alpha: 0.02),
               blurRadius: 10,
               offset: const Offset(0, 4),
             )
@@ -209,7 +202,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.amber.withOpacity(0.1),
+                color: Colors.amber.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.rate_review_rounded, color: Colors.green, size: 20),
@@ -247,7 +240,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.account_circle_outlined, size: 100, color: primaryTurquoise.withOpacity(0.5)),
+              Icon(Icons.account_circle_outlined, size: 100, color: primaryTurquoise.withValues(alpha: 0.5)),
               const SizedBox(height: 20),
               const Text("Ви ще не зареєстровані", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
@@ -305,10 +298,12 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                     context,
                     MaterialPageRoute(builder: (context) => EditProfileScreen(user: user)),
                   );
+                  if (!context.mounted) return;
                   if (updatedUser != null) _loadUserData();
                 } else if (value == "logout") {
-                  await fbAuth.FirebaseAuth.instance.signOut();
-                  if (mounted) Navigator.pushReplacementNamed(context, '/login');
+                  await fb_auth.FirebaseAuth.instance.signOut();
+                  if (!context.mounted) return;
+                  Navigator.pushReplacementNamed(context, '/login');
                 }
               },
               itemBuilder: (context) => [
@@ -418,7 +413,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
             ],
 
             const SizedBox(height: 30),
-            const Text("Відгуки поки що відсутні", style: TextStyle(color: Colors.grey, fontSize: 14)),
+            _buildReviewsPreview(),
             const SizedBox(height: 40),
           ],
         ),
@@ -434,7 +429,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)]),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)]),
       child: Column(children: children),
     );
   }
@@ -446,7 +441,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.grey.shade100),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)],
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.all(12),
@@ -496,6 +491,47 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildReviewsPreview() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)],
+      ),
+      child: StreamBuilder<dynamic>(
+        stream: _reviewService.getReviewsForUser(widget.userId),
+        builder: (context, snapshot) {
+          final docs = snapshot.data?.docs as List<dynamic>? ?? <dynamic>[];
+          if (docs.isEmpty) {
+            return const Text('Відгуки поки що відсутні', style: TextStyle(color: Colors.grey, fontSize: 14));
+          }
+
+          final top = docs.take(3).toList();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Останні відгуки', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              ...top.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final int r = (data['rating'] as num?)?.toInt() ?? 5;
+                final String comment = (data['comment'] as String?)?.trim().isNotEmpty == true
+                    ? data['comment'] as String
+                    : 'Без коментаря';
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text('⭐' * r + '  $comment', maxLines: 2, overflow: TextOverflow.ellipsis),
+                );
+              }),
+            ],
+          );
+        },
       ),
     );
   }

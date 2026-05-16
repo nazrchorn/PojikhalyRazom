@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/trip.dart';
 import '../main.dart'; // Щоб взяти ключ MyApp.orsKey
+import '../services/trip_service.dart';
 import 'departure_search_screen.dart';
 import 'arrival_search_screen.dart';
 import 'route_selection_screen.dart';
@@ -18,6 +18,7 @@ class MyTripsScreen extends StatefulWidget {
 
 class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateMixin {
   late TabController _tabController;
+  final TripService _tripService = TripService();
 
   final Color primaryTurquoise = const Color(0xFF5DD9C1);
 
@@ -70,13 +71,6 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
       );
     }
 
-    final tripsQuery = FirebaseFirestore.instance
-        .collection('trips')
-        .where(Filter.or(
-      Filter('driverId', isEqualTo: user.uid),
-      Filter('passengers', arrayContains: user.uid),
-    ));
-
     return Scaffold(
       backgroundColor: const Color(0xFFFBFBFB),
       appBar: AppBar(
@@ -98,34 +92,30 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
           ],
         ),
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: tripsQuery.snapshots(),
+      body: StreamBuilder<List<Trip>>(
+        stream: _tripService.getUserTrips(user.uid),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(child: Text("Поїздок не знайдено"));
           }
 
           final now = DateTime.now();
-          final tripDocs = snapshot.data!.docs;
-
-          final List<Trip> allTrips = tripDocs
-              .map((doc) => Trip.fromMap(doc.data() as Map<String, dynamic>, doc.id))
-              .toList();
+          final List<Trip> allTrips = snapshot.data!;
 
           // 1. Активні поїздки (статус = 'active' і час ще не прийшов)
           final activeTrips = allTrips
-              .where((trip) => trip.status == 'active' && trip.departureTime.isAfter(now))
+              .where((trip) => trip.status == 'active' && !trip.isCompletedByTime(now))
               .toList()
             ..sort((a, b) => a.departureTime.compareTo(b.departureTime));
 
-          // 2. Завершені поїздки (статус = 'completed' або час вже прийшов і статус != 'cancelled')
+          // 2. Завершені поїздки (статус = 'completed' або минув плановий час прибуття)
           final completedTrips = allTrips
               .where((trip) =>
                   trip.status == 'completed' ||
-                  (trip.departureTime.isBefore(now) && trip.status != 'cancelled'))
+                  (trip.isCompletedByTime(now) && trip.status != 'cancelled'))
               .toList()
             ..sort((a, b) => b.departureTime.compareTo(a.departureTime));
 
@@ -193,7 +183,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           )
@@ -202,7 +192,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
-          backgroundColor: statusColor.withOpacity(0.1),
+          backgroundColor: statusColor.withValues(alpha: 0.1),
           child: Icon(
             isDriver ? Icons.drive_eta_rounded : Icons.person_pin_circle_rounded,
             color: statusColor,
@@ -226,7 +216,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: statusColor.withOpacity(0.1),
+                  color: statusColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(

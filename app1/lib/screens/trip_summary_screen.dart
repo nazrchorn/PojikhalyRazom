@@ -1,11 +1,11 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'main_screen.dart';
 import '../models/location.dart';
 import '../models/trip.dart';
+import '../services/trip_service.dart';
+import '../services/user_service.dart';
 
 class TripSummaryScreen extends StatefulWidget {
   final String title;
@@ -50,6 +50,8 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
   String? driverGender;
   List<Map<String, dynamic>> stops = [];
   final Color _primaryTeal = const Color(0xFF00BFA5);
+  final TripService _tripService = TripService();
+  final UserService _userService = UserService();
 
   @override
   void initState() {
@@ -62,9 +64,8 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
-    if (doc.exists) {
-      final data = doc.data()!;
+    final data = await _userService.loadUserData(user.uid);
+    if (data != null) {
       setState(() {
         driverGender = data['gender'];
         isTalkative = data['isTalkative'] ?? false;
@@ -72,10 +73,8 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
         isSmoker = data['isSmoker'] ?? false;
         allowSmoking = data['allowSmoking'] ?? false;
 
-        if (data['car'] != null && data['car']['seats'] != null) {
-          maxCarSeats = data['car']['seats'];
-          seats = maxCarSeats - 1; // За замовчуванням всі вільні місця
-        }
+        maxCarSeats = _userService.extractMaxCarSeats(data, fallback: maxCarSeats);
+        seats = maxCarSeats > 1 ? maxCarSeats - 1 : 1;
       });
       _calculateFairPrice();
     }
@@ -125,6 +124,8 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
       ...stops.map((s) => (s['city'] as String).toLowerCase().trim()),
       destinationLocation.city.toLowerCase().trim(),
     ];
+    final int estimatedDurationMinutes =
+        (((widget.selectedRoute['duration'] as num?)?.toDouble() ?? 0) / 60).round();
 
     final trip = Trip(
       id: '',
@@ -147,12 +148,11 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
       allowChildren: allowChildren,
       allowPets: allowPets,
       womenOnly: womenOnly,
+      estimatedDurationMinutes: estimatedDurationMinutes,
     );
 
     try {
-      final Map<String, dynamic> tripMap = trip.toMap();
-      tripMap['routeCities'] = routeCities;
-      await FirebaseFirestore.instance.collection('trips').add(tripMap);
+      await _tripService.createTrip(trip);
 
       if (mounted) {
         _showSnackBar("Поїздку опубліковано!", isSuccess: true);
@@ -331,7 +331,7 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
                     onSelectionChanged: (val) => setState(() => musicType = val.first),
                     showSelectedIcon: false,
                     style: SegmentedButton.styleFrom(
-                        selectedBackgroundColor: _primaryTeal.withOpacity(0.2),
+                        selectedBackgroundColor: _primaryTeal.withValues(alpha: 0.2),
                         selectedForegroundColor: _primaryTeal
                     ),
                   ),
@@ -383,7 +383,7 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       padding: padding ?? const EdgeInsets.all(20),
       child: child,
@@ -394,7 +394,7 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: isActive ? _primaryTeal.withOpacity(0.12) : Colors.grey.withOpacity(0.08),
+        color: isActive ? _primaryTeal.withValues(alpha: 0.12) : Colors.grey.withValues(alpha: 0.08),
         shape: BoxShape.circle,
       ),
       child: icon is IconData
@@ -405,7 +405,7 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
 
   Widget _buildSwitchTile(String title, dynamic icon, bool value, Function(bool) onChanged, {bool isFa = true}) {
     return SwitchListTile(
-      activeColor: _primaryTeal,
+      activeThumbColor: _primaryTeal,
       secondary: _buildIconCircle(icon, value),
       title: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
       value: value,
@@ -434,6 +434,9 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
       builder: (context, child) => Theme(data: ThemeData.light().copyWith(colorScheme: ColorScheme.light(primary: _primaryTeal)), child: child!),
     );
     if (date != null) {
+      if (!mounted) {
+        return;
+      }
       final time = await showTimePicker(context: context, initialTime: TimeOfDay.now());
       if (time != null) setState(() => departureTime = DateTime(date.year, date.month, date.day, time.hour, time.minute));
     }

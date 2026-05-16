@@ -21,6 +21,7 @@ class Trip {
   final String? cancellationReason; // причина скасування
   final DateTime? cancelledAt; // коли скасована
   final DateTime? completedAt; // коли завершена
+  final int? estimatedDurationMinutes; // запланована тривалість маршруту
 
   Trip({
     required this.id,
@@ -42,7 +43,20 @@ class Trip {
     this.cancellationReason,
     this.cancelledAt,
     this.completedAt,
+    this.estimatedDurationMinutes,
   });
+
+  DateTime getPlannedArrivalTime() {
+    final minutes = estimatedDurationMinutes ?? 0;
+    if (minutes <= 0) {
+      return departureTime;
+    }
+    return departureTime.add(Duration(minutes: minutes));
+  }
+
+  bool isCompletedByTime(DateTime now) {
+    return now.isAfter(getPlannedArrivalTime());
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -64,14 +78,16 @@ class Trip {
       'cancellationReason': cancellationReason,
       'cancelledAt': cancelledAt?.toIso8601String(),
       'completedAt': completedAt?.toIso8601String(),
+      'estimatedDurationMinutes': estimatedDurationMinutes,
     };
   }
 
   factory Trip.fromMap(Map<String, dynamic> map, String id) {
     // Функція для безпечної конвертації дати
     DateTime parseDate(dynamic date) {
-      if (date is Timestamp)
+      if (date is Timestamp) {
         return date.toDate(); // Якщо це Timestamp (Firebase)
+      }
       if (date is String) return DateTime.parse(date); // Якщо це String
       return DateTime.now(); // Фолбек
     }
@@ -99,6 +115,7 @@ class Trip {
       cancellationReason: map['cancellationReason'],
       cancelledAt: map['cancelledAt'] != null ? parseDate(map['cancelledAt']) : null,
       completedAt: map['completedAt'] != null ? parseDate(map['completedAt']) : null,
+      estimatedDurationMinutes: (map['estimatedDurationMinutes'] as num?)?.toInt(),
     );
   }
 }

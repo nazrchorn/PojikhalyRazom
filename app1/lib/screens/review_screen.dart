@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/review.dart';
-import '../models/user.dart' as app_user;
+import '../services/review_service.dart';
+import '../services/user_service.dart';
 
 class ReviewScreen extends StatefulWidget {
   final String tripId;
@@ -29,6 +28,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
   int rating = 5;
   late TextEditingController commentController;
   bool isLoading = false;
+  final ReviewService _reviewService = ReviewService();
+  final UserService _userService = UserService();
 
   final Color primaryTurquoise = const Color(0xFF5DD9C1);
   final Color bgTurquoiseLight = const Color(0xFFE8F8F5);
@@ -56,19 +57,15 @@ class _ReviewScreenState extends State<ReviewScreen> {
     setState(() => isLoading = true);
 
     try {
-      // 1. Додаємо відгук в колекцію 'reviews'
-      final reviewRef = FirebaseFirestore.instance.collection('reviews').doc();
-      await reviewRef.set({
-        'tripId': widget.tripId,
-        'fromUserId': widget.fromUserId,
-        'toUserId': widget.toUserId,
-        'rating': rating,
-        'comment': commentController.text.trim(),
-        'createdAt': DateTime.now(),
-        'role': widget.role,
-      });
+      await _reviewService.submitReview(
+        tripId: widget.tripId,
+        fromUserId: widget.fromUserId,
+        toUserId: widget.toUserId,
+        rating: rating,
+        comment: commentController.text.trim(),
+        role: widget.role,
+      );
 
-      // 2. Оновлюємо рейтинг користувача
       await _updateUserRating();
 
       if (mounted) {
@@ -90,24 +87,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
 
   Future<void> _updateUserRating() async {
     try {
-      final userRef =
-          FirebaseFirestore.instance.collection('users').doc(widget.toUserId);
-
-      // Отримуємо поточні дані користувача
-      final userDoc = await userRef.get();
-      final userData = userDoc.data() as Map<String, dynamic>;
-      final currentRating = (userData['rating'] ?? 0).toDouble();
-      final reviewCount = (userData['reviewCount'] ?? 0).toInt();
-
-      // Розраховуємо новий рейтинг
-      final newReviewCount = reviewCount + 1;
-      final newRating = (currentRating * reviewCount + rating) / newReviewCount;
-
-      // Оновлюємо користувача
-      await userRef.update({
-        'rating': newRating,
-        'reviewCount': newReviewCount,
-      });
+      await _userService.updateUserRating(userId: widget.toUserId, newRating: rating);
     } catch (e) {
       debugPrint('Помилка оновлення рейтингу: $e');
     }
