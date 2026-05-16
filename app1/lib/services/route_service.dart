@@ -3,6 +3,59 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
 class RouteService {
+  Future<Map<String, dynamic>?> fetchRouteWithWaypoints({
+    required List<LatLng> waypoints,
+    required String apiKey,
+  }) async {
+    if (waypoints.length < 2) return null;
+
+    final coordinates = waypoints
+        .map((p) => <double>[p.longitude, p.latitude])
+        .toList();
+
+    final uri = Uri.parse(
+      'https://api.openrouteservice.org/v2/directions/driving-car/geojson',
+    );
+
+    final response = await http
+        .post(
+          uri,
+          headers: <String, String>{
+            'Authorization': apiKey,
+            'Content-Type': 'application/json',
+          },
+          body: json.encode(<String, dynamic>{
+            'coordinates': coordinates,
+          }),
+        )
+        .timeout(const Duration(seconds: 12));
+
+    if (response.statusCode != 200) {
+      throw Exception('HTTP ${response.statusCode}: ${response.reasonPhrase}');
+    }
+
+    final data = json.decode(response.body) as Map<String, dynamic>;
+    final features = data['features'] as List<dynamic>?;
+    if (features == null || features.isEmpty) {
+      return null;
+    }
+
+    final feature = features.first as Map<String, dynamic>;
+    final coords = feature['geometry']['coordinates'] as List<dynamic>;
+    final polyline = coords
+        .map((dynamic c) => LatLng(
+              ((c as List<dynamic>)[1] as num).toDouble(),
+              (c[0] as num).toDouble(),
+            ))
+        .toList();
+
+    return {
+      'polyline': polyline,
+      'duration': feature['properties']['summary']['duration'],
+      'distance': feature['properties']['summary']['distance'],
+    };
+  }
+
   Future<List<Map<String, dynamic>>> fetchAlternativeRoutes({
     required Map<String, dynamic> origin,
     required Map<String, dynamic> destination,

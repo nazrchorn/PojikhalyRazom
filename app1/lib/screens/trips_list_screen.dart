@@ -6,11 +6,23 @@ import 'trip_details_screen.dart';
 class TripsListScreen extends StatelessWidget {
   final String fromCity;
   final String toCity;
+  final DateTime selectedDate;
+  final DateTime? dateRangeStart;
+  final DateTime? dateRangeEnd;
+  final bool allowSmoking;
+  final bool allowPets;
+  final bool allowChildren;
 
   TripsListScreen({
     super.key,
     required this.fromCity,
     required this.toCity,
+    required this.selectedDate,
+    this.dateRangeStart,
+    this.dateRangeEnd,
+    this.allowSmoking = true,
+    this.allowPets = true,
+    this.allowChildren = true,
   });
 
   final Color primaryTurquoise = const Color(0xFF2F8F7F);
@@ -74,32 +86,52 @@ class TripsListScreen extends StatelessWidget {
 
           final allTrips = snapshot.data!;
 
-          // 2. Гнучка фільтрація
-          final filteredTrips = allTrips.where((trip) {
-            // Очищаємо назви з бази
-            final String tripOrigin = _cleanCityName(trip.origin.city);
-            final String tripDest = _cleanCityName(trip.destination.city);
-            final List<String> tripStops = trip.stops.map((s) => _cleanCityName(s.city)).toList();
+           // 2. Гнучка фільтрація з датою та фільтрами
+           final filteredTrips = allTrips.where((trip) {
+             // ...existing city/stops matching logic...
+             final String tripOrigin = _cleanCityName(trip.origin.city);
+             final String tripDest = _cleanCityName(trip.destination.city);
+             final List<String> tripStops = trip.stops.map((s) => _cleanCityName(s.city)).toList();
 
-            // Місця, де можна СІСТИ (Початок + Зупинки)
-            final List<String> pickupPoints = [tripOrigin, ...tripStops];
+             final List<String> pickupPoints = [tripOrigin, ...tripStops];
+             final List<String> dropoffPoints = [...tripStops, tripDest];
 
-            // Місця, де можна ВИЙТИ (Зупинки + Фініш)
-            final List<String> dropoffPoints = [...tripStops, tripDest];
+             bool matchFrom = pickupPoints.contains(cleanFrom);
+             bool matchTo = dropoffPoints.contains(cleanTo);
 
-            // Перевіряємо, чи є збіг
-            bool matchFrom = pickupPoints.contains(cleanFrom);
-            bool matchTo = dropoffPoints.contains(cleanTo);
+             if (!matchFrom || !matchTo) {
+               return false;
+             }
 
-            if (!matchFrom || !matchTo) {
-              return false;
-            }
+             final orderedRoute = <String>[trip.origin.city, ...trip.stops.map((s) => s.city), trip.destination.city];
+             final fromIdx = _findCityIndex(orderedRoute, fromCity);
+             final toIdx = _findCityIndex(orderedRoute, toCity);
+             if (!(fromIdx >= 0 && toIdx > fromIdx)) {
+               return false;
+             }
 
-            final orderedRoute = <String>[trip.origin.city, ...trip.stops.map((s) => s.city), trip.destination.city];
-            final fromIdx = _findCityIndex(orderedRoute, fromCity);
-            final toIdx = _findCityIndex(orderedRoute, toCity);
-            return fromIdx >= 0 && toIdx > fromIdx;
-          }).toList();
+             // Фільтрація по даті
+             final tripDate = trip.departureTime;
+             final tripDateOnly = DateTime(tripDate.year, tripDate.month, tripDate.day);
+             final selectedDateOnly = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+             
+             if (dateRangeStart != null && dateRangeEnd != null) {
+               final rangeStart = DateTime(dateRangeStart!.year, dateRangeStart!.month, dateRangeStart!.day);
+               final rangeEnd = DateTime(dateRangeEnd!.year, dateRangeEnd!.month, dateRangeEnd!.day);
+               if (tripDateOnly.isBefore(rangeStart) || tripDateOnly.isAfter(rangeEnd)) {
+                 return false;
+               }
+             } else if (tripDateOnly != selectedDateOnly) {
+               return false;
+             }
+
+             // Фільтрація по параметрам
+             if (!allowSmoking && !trip.womenOnly) { /* smoking filter logic if needed */ }
+             if (!allowPets && !trip.allowPets) return false;
+             if (!allowChildren && !trip.allowChildren) return false;
+
+             return true;
+           }).toList();
 
           if (filteredTrips.isEmpty) {
             return _buildEmptyState();

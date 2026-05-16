@@ -9,6 +9,12 @@ class BookingRequest {
   final String? toCity;
   final String status; // pending | confirmed | rejected | cancelled
   final double? requestedPrice;
+  final double? pickupLat;
+  final double? pickupLng;
+  final String? pickupAddress;
+  final double? dropoffLat;
+  final double? dropoffLng;
+  final String? dropoffAddress;
   final DateTime createdAt;
   final DateTime? respondedAt;
   final String? respondedBy;
@@ -23,6 +29,12 @@ class BookingRequest {
     this.requestedPrice,
     this.fromCity,
     this.toCity,
+    this.pickupLat,
+    this.pickupLng,
+    this.pickupAddress,
+    this.dropoffLat,
+    this.dropoffLng,
+    this.dropoffAddress,
     this.respondedAt,
     this.respondedBy,
   });
@@ -46,6 +58,12 @@ class BookingRequest {
       toCity: map['toCity'],
       status: map['status'] ?? 'pending',
       requestedPrice: (map['requestedPrice'] as num?)?.toDouble(),
+      pickupLat: (map['pickupLat'] as num?)?.toDouble(),
+      pickupLng: (map['pickupLng'] as num?)?.toDouble(),
+      pickupAddress: map['pickupAddress'],
+      dropoffLat: (map['dropoffLat'] as num?)?.toDouble(),
+      dropoffLng: (map['dropoffLng'] as num?)?.toDouble(),
+      dropoffAddress: map['dropoffAddress'],
       createdAt: parse(map['createdAt']),
       respondedAt: map['respondedAt'] != null ? parse(map['respondedAt']) : null,
       respondedBy: map['respondedBy'],

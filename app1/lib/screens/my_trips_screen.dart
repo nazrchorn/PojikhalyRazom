@@ -13,6 +13,7 @@ import 'arrival_search_screen.dart';
 import 'route_selection_screen.dart';
 import 'trip_details_screen.dart';
 import 'review_screen.dart';
+import 'public_profile_screen.dart';
 
 class MyTripsScreen extends StatefulWidget {
   const MyTripsScreen({super.key});
@@ -416,9 +417,78 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text(passengerName, style: const TextStyle(fontWeight: FontWeight.w700)),
-                                        const SizedBox(height: 4),
-                                        Text(routeText, style: const TextStyle(color: Colors.black54)),
+                                         Text(passengerName, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                         const SizedBox(height: 4),
+                                         Text(routeText, style: const TextStyle(color: Colors.black54)),
+                                         if (request.pickupAddress != null) ...[
+                                           const SizedBox(height: 4),
+                                           Container(
+                                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                             decoration: BoxDecoration(
+                                               color: primaryTurquoise.withValues(alpha: 0.08),
+                                               borderRadius: BorderRadius.circular(6),
+                                             ),
+                                             child: Row(
+                                               children: [
+                                                 Icon(Icons.location_on_outlined, size: 14, color: primaryTurquoise),
+                                                 const SizedBox(width: 6),
+                                                 Expanded(
+                                                   child: Text(
+                                                     'Посадка: ${request.pickupAddress}',
+                                                     maxLines: 1,
+                                                     overflow: TextOverflow.ellipsis,
+                                                     style: const TextStyle(fontSize: 11, color: Colors.black54),
+                                                   ),
+                                                 ),
+                                               ],
+                                             ),
+                                           ),
+                                         ],
+                                         if (request.dropoffAddress != null) ...[
+                                           const SizedBox(height: 3),
+                                           Container(
+                                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                             decoration: BoxDecoration(
+                                               color: primaryTurquoise.withValues(alpha: 0.08),
+                                               borderRadius: BorderRadius.circular(6),
+                                             ),
+                                             child: Row(
+                                               children: [
+                                                 Icon(Icons.flag_outlined, size: 14, color: primaryTurquoise),
+                                                 const SizedBox(width: 6),
+                                                 Expanded(
+                                                   child: Text(
+                                                     'Висадка: ${request.dropoffAddress}',
+                                                     maxLines: 1,
+                                                     overflow: TextOverflow.ellipsis,
+                                                     style: const TextStyle(fontSize: 11, color: Colors.black54),
+                                                   ),
+                                                 ),
+                                               ],
+                                             ),
+                                           ),
+                                         ],
+                                         const SizedBox(height: 6),
+                                         OutlinedButton.icon(
+                                           onPressed: () {
+                                             Navigator.push(
+                                               context,
+                                               MaterialPageRoute(
+                                                 builder: (_) => PublicProfileScreen(
+                                                   userId: request.passengerId,
+                                                   isMyProfile: false,
+                                                 ),
+                                               ),
+                                             );
+                                           },
+                                           icon: const Icon(Icons.person_outline_rounded, size: 16),
+                                           label: const Text('Профіль пасажира'),
+                                           style: OutlinedButton.styleFrom(
+                                             foregroundColor: primaryTurquoise,
+                                             side: BorderSide(color: primaryTurquoise.withValues(alpha: 0.45)),
+                                             minimumSize: const Size.fromHeight(34),
+                                           ),
+                                         ),
                                         if (requestedPrice != null) ...[
                                           const SizedBox(height: 4),
                                           Text(

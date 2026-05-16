@@ -53,15 +53,33 @@ class _TripDetailsMapScreenState extends State<TripDetailsMapScreen> {
     return null;
   }
 
+  List<LatLng> _buildVisibleRoutePoints() {
+    final ordered = [widget.trip.origin, ...widget.trip.stops, widget.trip.destination];
+    final points = <LatLng>[];
+    for (int i = 0; i < ordered.length; i++) {
+      final city = ordered[i].city;
+      final include = i == 0 || i == ordered.length - 1 || _isVisibleRouteCity(city);
+      if (!include) continue;
+      points.add(LatLng(ordered[i].lat, ordered[i].lng));
+    }
+    return points;
+  }
+
   Future<void> _fetchRoute() async {
     try {
-      final routeData = await _routeService.fetchRouteForTrip(
-        startLat: widget.trip.origin.lat,
-        startLng: widget.trip.origin.lng,
-        endLat: widget.trip.destination.lat,
-        endLng: widget.trip.destination.lng,
-        apiKey: widget.apiKey,
-      );
+      final viaPoints = _buildVisibleRoutePoints();
+      final routeData = viaPoints.length >= 2
+          ? await _routeService.fetchRouteWithWaypoints(
+              waypoints: viaPoints,
+              apiKey: widget.apiKey,
+            )
+          : await _routeService.fetchRouteForTrip(
+              startLat: widget.trip.origin.lat,
+              startLng: widget.trip.origin.lng,
+              endLat: widget.trip.destination.lat,
+              endLng: widget.trip.destination.lng,
+              apiKey: widget.apiKey,
+            );
 
       if (!mounted) return;
 

@@ -4,8 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/trip.dart';
 import '../services/chat_service.dart';
 import '../services/trip_service.dart';
-import '../services/booking_service.dart';
-import '../services/user_service.dart';
 import 'trip_details_screen.dart';
 
 class MessangerScreen extends StatefulWidget {
@@ -284,8 +282,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
   final ScrollController _scrollController = ScrollController();
   final ChatService _chatService = ChatService();
   final TripService _tripService = TripService();
-  final BookingService _bookingService = BookingService();
-  final UserService _userService = UserService();
 
   // Non-null when user is editing an existing message
   String? _editingDocId;
@@ -315,22 +311,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
     return value is bool ? value : false;
   }
 
-  String _safeType(Map<String, dynamic> data) {
-    final value = data['type'];
-    return value is String ? value : '';
-  }
-
   String _safeTripId(Map<String, dynamic> data) {
     final value = data['tripId'];
     return value is String ? value : '';
-  }
-
-  Map<String, dynamic> _safeMetadata(Map<String, dynamic> data) {
-    final value = data['metadata'];
-    if (value is Map) {
-      return Map<String, dynamic>.from(value);
-    }
-    return <String, dynamic>{};
   }
 
   String _formatTime(DateTime date) {
@@ -441,45 +424,6 @@ class _ConversationScreenState extends State<ConversationScreen> {
     );
   }
 
-  Future<void> _handleSystemBookingAction({
-    required String requestId,
-    required bool approve,
-  }) async {
-    final currentUserData = await _userService.loadUserData(widget.currentUserId);
-    final driverName = currentUserData?['name'] as String? ?? 'Водiй';
-    if (!mounted) return;
-
-    try {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const Center(child: CircularProgressIndicator()),
-      );
-
-      if (approve) {
-        await _bookingService.confirmBookingRequest(
-          requestId: requestId,
-          driverName: driverName,
-        );
-      } else {
-        await _bookingService.rejectBookingRequest(
-          requestId: requestId,
-          driverName: driverName,
-        );
-      }
-
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(approve ? 'Запит пiдтверджено' : 'Запит вiдхилено')),
-        );
-      }
-    } catch (_) {
-      if (mounted) {
-        Navigator.pop(context);
-      }
-    }
-  }
 
   void _showMessageOptions(
     BuildContext ctx,
@@ -596,15 +540,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     final sentAt = _safeSentAt(data);
                     final isRead = _safeIsRead(data);
                     final isEdited = data['editedAt'] != null;
-                    final type = _safeType(data);
                     final tripId = _safeTripId(data);
-                    final metadata = _safeMetadata(data);
-                    final requestId = metadata['bookingRequestId'] as String? ?? '';
-                    final bool canResolveRequest =
-                        isSystemChat &&
-                        !isMine &&
-                        type == 'booking_request_created' &&
-                        requestId.isNotEmpty;
 
                     return Align(
                       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
@@ -732,46 +668,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                   ),
                                 ),
                               ],
-                              if (canResolveRequest) ...[
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: ElevatedButton(
-                                        onPressed: () => _handleSystemBookingAction(
-                                          requestId: requestId,
-                                          approve: true,
-                                        ),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFF2F8F7F),
-                                          minimumSize: const Size.fromHeight(34),
-                                          padding: EdgeInsets.zero,
-                                        ),
-                                        child: const Text(
-                                          'Пiдтвердити',
-                                          style: TextStyle(color: Colors.white, fontSize: 12),
-                                        ),
-                                    ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: OutlinedButton(
-                                        onPressed: () => _handleSystemBookingAction(
-                                          requestId: requestId,
-                                          approve: false,
-                                        ),
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: Colors.red,
-                                          side: const BorderSide(color: Colors.red),
-                                          minimumSize: const Size.fromHeight(34),
-                                          padding: EdgeInsets.zero,
-                                        ),
-                                        child: const Text('Вiдхилити', style: TextStyle(fontSize: 12)),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
+                              // Прийняття/відхилення виконується на екрані поїздки.
                             ],
                           ),
                         ),

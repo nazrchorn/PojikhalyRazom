@@ -15,6 +15,7 @@ import 'public_profile_screen.dart';
 import 'trip_details_map_screen.dart';
 import 'messanger_screen.dart';
 import 'review_screen.dart';
+import 'pickup_dropoff_location_screen.dart';
 
 class TripDetailScreen extends StatelessWidget {
   final Trip trip;
@@ -824,20 +825,89 @@ class TripDetailScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(passengerName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                          const SizedBox(height: 4),
-                          Text(routeText, style: const TextStyle(color: Colors.black54, fontSize: 13)),
-                           if (requestedPrice != null) ...[
+                           Text(passengerName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                           const SizedBox(height: 4),
+                           Text(routeText, style: const TextStyle(color: Colors.black54, fontSize: 13)),
+                           if (request.pickupAddress != null) ...[
                              const SizedBox(height: 4),
-                             Text(
-                               'Ціна для пасажира: ${requestedPrice.toInt()} ₴',
-                               style: TextStyle(
-                                 color: primaryTurquoise,
-                                 fontSize: 12.5,
-                                 fontWeight: FontWeight.w700,
+                             Container(
+                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                               decoration: BoxDecoration(
+                                 color: primaryTurquoise.withValues(alpha: 0.08),
+                                 borderRadius: BorderRadius.circular(6),
+                               ),
+                               child: Row(
+                                 children: [
+                                   Icon(Icons.location_on_outlined, size: 14, color: primaryTurquoise),
+                                   const SizedBox(width: 6),
+                                   Expanded(
+                                     child: Text(
+                                       'Посадка: ${request.pickupAddress}',
+                                       maxLines: 1,
+                                       overflow: TextOverflow.ellipsis,
+                                       style: const TextStyle(fontSize: 11, color: Colors.black54),
+                                     ),
+                                   ),
+                                 ],
                                ),
                              ),
                            ],
+                           if (request.dropoffAddress != null) ...[
+                             const SizedBox(height: 3),
+                             Container(
+                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                               decoration: BoxDecoration(
+                                 color: primaryTurquoise.withValues(alpha: 0.08),
+                                 borderRadius: BorderRadius.circular(6),
+                               ),
+                               child: Row(
+                                 children: [
+                                   Icon(Icons.flag_outlined, size: 14, color: primaryTurquoise),
+                                   const SizedBox(width: 6),
+                                   Expanded(
+                                     child: Text(
+                                       'Висадка: ${request.dropoffAddress}',
+                                       maxLines: 1,
+                                       overflow: TextOverflow.ellipsis,
+                                       style: const TextStyle(fontSize: 11, color: Colors.black54),
+                                     ),
+                                   ),
+                                 ],
+                               ),
+                             ),
+                           ],
+                           const SizedBox(height: 6),
+                           OutlinedButton.icon(
+                             onPressed: () {
+                               Navigator.push(
+                                 context,
+                                 MaterialPageRoute(
+                                   builder: (_) => PublicProfileScreen(
+                                     userId: request.passengerId,
+                                     isMyProfile: false,
+                                   ),
+                                 ),
+                               );
+                             },
+                             icon: const Icon(Icons.person_outline_rounded, size: 16),
+                             label: const Text('Профіль пасажира'),
+                             style: OutlinedButton.styleFrom(
+                               foregroundColor: primaryTurquoise,
+                               side: BorderSide(color: primaryTurquoise.withValues(alpha: 0.45)),
+                               minimumSize: const Size.fromHeight(34),
+                             ),
+                           ),
+                            if (requestedPrice != null) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                'Ціна для пасажира: ${requestedPrice.toInt()} ₴',
+                                style: TextStyle(
+                                  color: primaryTurquoise,
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
                           const SizedBox(height: 8),
                           Row(
                             children: [
@@ -886,6 +956,52 @@ class TripDetailScreen extends StatelessWidget {
     final passengerName = passengerData?['name'] as String? ?? 'Пасажир';
     if (!context.mounted) return;
 
+    // Якщо пасажир запрошує з зупинки, запропонувати вибір точної точки
+    double? pickupLat, pickupLng, dropoffLat, dropoffLng;
+    String? pickupAddress, dropoffAddress;
+
+    // Якщо бронюємо не з origin
+    if (bookingFromCity != null && _normalizeCity(bookingFromCity!) != _normalizeCity(trip.origin.city)) {
+      final pickupResult = await Navigator.push<Map<String, dynamic>>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PickupDropoffLocationScreen(
+            tripOrigin: trip.origin,
+            tripDestination: trip.destination,
+            isPickup: true,
+            defaultCity: bookingFromCity!,
+            apiKey: MyApp.orsKey,
+          ),
+        ),
+      );
+      if (!context.mounted || pickupResult == null) return;
+      pickupLat = pickupResult['latitude'] as double;
+      pickupLng = pickupResult['longitude'] as double;
+      pickupAddress = pickupResult['address'] as String;
+    }
+
+    // Якщо бронюємо не до destination
+    if (bookingToCity != null && _normalizeCity(bookingToCity!) != _normalizeCity(trip.destination.city)) {
+      final dropoffResult = await Navigator.push<Map<String, dynamic>>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PickupDropoffLocationScreen(
+            tripOrigin: trip.origin,
+            tripDestination: trip.destination,
+            isPickup: false,
+            defaultCity: bookingToCity!,
+            apiKey: MyApp.orsKey,
+          ),
+        ),
+      );
+      if (!context.mounted || dropoffResult == null) return;
+      dropoffLat = dropoffResult['latitude'] as double;
+      dropoffLng = dropoffResult['longitude'] as double;
+      dropoffAddress = dropoffResult['address'] as String;
+    }
+
+    if (!context.mounted) return;
+
     try {
       showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
       await _bookingService.createBookingRequest(
@@ -900,6 +1016,12 @@ class TripDetailScreen extends StatelessWidget {
           fromCity: bookingFromCity,
           toCity: bookingToCity,
         ),
+        pickupLat: pickupLat,
+        pickupLng: pickupLng,
+        pickupAddress: pickupAddress,
+        dropoffLat: dropoffLat,
+        dropoffLng: dropoffLng,
+        dropoffAddress: dropoffAddress,
       );
       if (context.mounted) {
         Navigator.pop(context);

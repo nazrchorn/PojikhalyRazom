@@ -91,6 +91,12 @@ class BookingService {
     String? fromCity,
     String? toCity,
     double? requestedPrice,
+    double? pickupLat,
+    double? pickupLng,
+    String? pickupAddress,
+    double? dropoffLat,
+    double? dropoffLng,
+    String? dropoffAddress,
   }) async {
     final activeStatuses = ['pending', 'confirmed'];
     final existing = await _requests
@@ -113,6 +119,12 @@ class BookingService {
       'toCity': toCity,
       'status': 'pending',
       'requestedPrice': requestedPrice,
+      'pickupLat': pickupLat,
+      'pickupLng': pickupLng,
+      'pickupAddress': pickupAddress,
+      'dropoffLat': dropoffLat,
+      'dropoffLng': dropoffLng,
+      'dropoffAddress': dropoffAddress,
       'createdAt': FieldValue.serverTimestamp(),
       'respondedAt': null,
       'respondedBy': null,
