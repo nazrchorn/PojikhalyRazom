@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/chat_service.dart';
 
 class MessangerScreen extends StatefulWidget {
   const MessangerScreen({super.key});
@@ -11,18 +12,7 @@ class MessangerScreen extends StatefulWidget {
 
 class _MessangerScreenState extends State<MessangerScreen> {
   final Color primaryTurquoise = const Color(0xFF5DD9C1);
-
-  Stream<QuerySnapshot<Map<String, dynamic>>> _messagesForUser(String uid) {
-    return FirebaseFirestore.instance
-        .collection('messages')
-        .where(
-          Filter.or(
-            Filter('senderId', isEqualTo: uid),
-            Filter('receiverId', isEqualTo: uid),
-          ),
-        )
-        .snapshots();
-  }
+  final ChatService _chatService = ChatService();
 
   Map<String, dynamic> _safeData(DocumentSnapshot<Map<String, dynamic>> doc) {
     return doc.data() ?? <String, dynamic>{};
@@ -58,10 +48,6 @@ class _MessangerScreenState extends State<MessangerScreen> {
     return '$hh:$mm';
   }
 
-  Future<Map<String, dynamic>?> _loadUserSummary(String userId) async {
-    final userDoc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
-    return userDoc.data();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +69,7 @@ class _MessangerScreenState extends State<MessangerScreen> {
         elevation: 0,
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _messagesForUser(authUser.uid),
+        stream: _chatService.getMessagesForUser(authUser.uid),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -142,7 +128,7 @@ class _MessangerScreenState extends State<MessangerScreen> {
               final preview = previews[index];
 
               return FutureBuilder<Map<String, dynamic>?>(
-                future: _loadUserSummary(preview.partnerId),
+                future: _chatService.loadUserSummary(preview.partnerId),
                 builder: (context, userSnapshot) {
                   final userData = userSnapshot.data ?? const <String, dynamic>{};
                   final userName = (userData['name'] as String?)?.trim();
@@ -287,6 +273,7 @@ class ConversationScreen extends StatefulWidget {
 class _ConversationScreenState extends State<ConversationScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final ChatService _chatService = ChatService();
 
   // Non-null when user is editing an existing message
   String? _editingDocId;
@@ -299,11 +286,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _conversationStream() {
-    return FirebaseFirestore.instance
-        .collection('messages')
-        .where('senderId', whereIn: [widget.currentUserId, widget.partnerId])
-        .where('receiverId', whereIn: [widget.currentUserId, widget.partnerId])
-        .snapshots();
+    return _chatService.getConversationMessages(
+      widget.currentUserId,
+      widget.partnerId,
+    );
   }
 
   DateTime _safeSentAt(Map<String, dynamic> data) {
@@ -325,19 +311,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   }
 
   Future<void> _markIncomingAsRead(List<QueryDocumentSnapshot<Map<String, dynamic>>> docs) async {
-    final updates = docs.where((doc) {
-      final data = doc.data();
-      final receiverId = data['receiverId'] as String? ?? '';
-      return receiverId == widget.currentUserId && !_safeIsRead(data);
-    }).toList();
-
-    if (updates.isEmpty) return;
-
-    final batch = FirebaseFirestore.instance.batch();
-    for (final doc in updates) {
-      batch.update(doc.reference, {'isRead': true});
-    }
-    await batch.commit();
+    await _chatService.markIncomingAsRead(docs, widget.currentUserId);
   }
 
   Future<void> _sendMessage() async {
@@ -350,21 +324,15 @@ class _ConversationScreenState extends State<ConversationScreen> {
       // Save edit
       final docId = _editingDocId!;
       setState(() => _editingDocId = null);
-      await FirebaseFirestore.instance
-          .collection('messages')
-          .doc(docId)
-          .update({'text': text, 'editedAt': FieldValue.serverTimestamp()});
+      await _chatService.editMessage(docId, text);
       return;
     }
 
-    await FirebaseFirestore.instance.collection('messages').add({
-      'tripId': '',
-      'senderId': widget.currentUserId,
-      'receiverId': widget.partnerId,
-      'text': text,
-      'sentAt': FieldValue.serverTimestamp(),
-      'isRead': false,
-    });
+    await _chatService.sendMessage(
+      currentUserId: widget.currentUserId,
+      receiverId: widget.partnerId,
+      text: text,
+    );
 
     if (!_scrollController.hasClients) return;
     _scrollController.animateTo(
@@ -406,7 +374,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
       ),
     );
     if (confirmed == true) {
-      await FirebaseFirestore.instance.collection('messages').doc(docId).delete();
+      await _chatService.deleteMessage(docId);
     }
   }
 

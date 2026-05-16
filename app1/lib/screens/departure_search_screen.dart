@@ -1,7 +1,6 @@
-import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'dart:async';
+import 'package:flutter/material.dart';
+import '../services/map_service.dart';
 
 class DepartureSearchScreen extends StatefulWidget {
   const DepartureSearchScreen({super.key});
@@ -12,6 +11,8 @@ class DepartureSearchScreen extends StatefulWidget {
 
 class _DepartureSearchScreenState extends State<DepartureSearchScreen> {
   final _controller = TextEditingController();
+  final MapService _mapService = MapService();
+
   List<Map<String, dynamic>> suggestions = [];
   bool _isLoading = false;
   Timer? _debounce;
@@ -24,32 +25,12 @@ class _DepartureSearchScreenState extends State<DepartureSearchScreen> {
 
     setState(() => _isLoading = true);
 
-    // Використовуємо Nominatim для стабільності
-    final url = "https://nominatim.openstreetmap.org/search?"
-        "q=${Uri.encodeComponent(query)}"
-        "&format=json&addressdetails=1&limit=10&countrycodes=ua&accept-language=uk";
-
     try {
-      final response = await http.get(Uri.parse(url), headers: {
-        'User-Agent': 'Pojikhaly_Razom_App',
+      final results = await _mapService.searchAddressesForDeparture(query);
+      setState(() {
+        suggestions = results;
+        _isLoading = false;
       });
-
-      if (response.statusCode == 200) {
-        final List data = json.decode(utf8.decode(response.bodyBytes));
-        setState(() {
-          suggestions = data.map((item) {
-            final addr = item['address'];
-            return {
-              "city": addr['city'] ?? addr['town'] ?? addr['village'] ?? "Невідомо",
-              "country": addr['country'] ?? "Україна",
-              "address": item['display_name'],
-              "lat": double.parse(item['lat']),
-              "lng": double.parse(item['lon']),
-            };
-          }).toList();
-          _isLoading = false;
-        });
-      }
     } catch (e) {
       setState(() => _isLoading = false);
       debugPrint("Помилка пошуку: $e");

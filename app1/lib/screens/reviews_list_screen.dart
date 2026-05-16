@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/review.dart';
+import '../services/review_service.dart';
 
 class ReviewsListScreen extends StatelessWidget {
   final String userId;
@@ -17,6 +17,8 @@ class ReviewsListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final reviewService = ReviewService();
+
     return Scaffold(
       backgroundColor: const Color(0xFFFBFBFB),
       appBar: AppBar(
@@ -26,12 +28,8 @@ class ReviewsListScreen extends StatelessWidget {
         elevation: 0,
         foregroundColor: Colors.black87,
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('reviews')
-            .where('toUserId', isEqualTo: userId)
-            .orderBy('createdAt', descending: true)
-            .snapshots(),
+      body: StreamBuilder<dynamic>(
+        stream: reviewService.getReviewsForUser(userId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -131,7 +129,7 @@ class ReviewsListScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
 
-                ...reviews.map((review) => _buildReviewCard(context, review)).toList(),
+                ...reviews.map((review) => _buildReviewCard(context, review)),
               ],
             ),
           );

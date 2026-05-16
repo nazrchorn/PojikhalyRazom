@@ -1,7 +1,6 @@
-import 'dart:convert';
-import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:async';
+import 'package:flutter/material.dart';
+import '../services/map_service.dart';
 
 class CitySearchScreen extends StatefulWidget {
   final String title;
@@ -14,12 +13,12 @@ class CitySearchScreen extends StatefulWidget {
 
 class _CitySearchScreenState extends State<CitySearchScreen> {
   final TextEditingController _searchController = TextEditingController();
+  final MapService _mapService = MapService();
+
   List<dynamic> _suggestions = [];
   bool _isLoading = false;
-  String? _errorMessage; // Додаємо для відстеження помилок
+  String? _errorMessage;
   Timer? _debounce;
-
-  final String _apiKey = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBiOTQ0MDNkMjQyNTQyNzRhODg4M2ZkNzhlZTM2MWM3IiwiaCI6Im11cm11cjY0In0';
 
   Future<void> _fetchSuggestions(String query) async {
     if (query.trim().length < 2) {
@@ -36,57 +35,13 @@ class _CitySearchScreenState extends State<CitySearchScreen> {
       _errorMessage = null;
     });
 
-    // Використовуємо OpenStreetMap Nominatim - він безкоштовний і стабільний
-    final String url =
-        "https://nominatim.openstreetmap.org/search?"
-        "q=${Uri.encodeComponent(query)}"
-        "&format=json"
-        "&addressdetails=1"
-        "&limit=10"
-        "&countrycodes=ua" // Тільки Україна
-        "&accept-language=uk"; // Пріоритет українській мові
-
     try {
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'User-Agent': 'Pojikhaly_Razom_Student_Project', // OSM вимагає User-Agent
-        },
-      ).timeout(const Duration(seconds: 10));
+      final suggestions = await _mapService.searchAddresses(query);
 
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
-
-        setState(() {
-          _suggestions = data.map((item) {
-            // Формуємо назву: місто, або село, або назва об'єкта
-            final address = item['address'];
-            final String cityName = address['city'] ??
-                address['town'] ??
-                address['village'] ??
-                item['display_name'].split(',')[0];
-
-            return {
-              'properties': {
-                'locality': cityName,
-                'label': item['display_name'],
-              },
-              'geometry': {
-                'coordinates': [
-                  double.parse(item['lon']),
-                  double.parse(item['lat'])
-                ]
-              }
-            };
-          }).toList();
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _errorMessage = "Помилка сервера: ${response.statusCode}";
-          _isLoading = false;
-        });
-      }
+      setState(() {
+        _suggestions = suggestions;
+        _isLoading = false;
+      });
     } catch (e) {
       setState(() {
         _errorMessage = "Перевір підключення до інтернету";
