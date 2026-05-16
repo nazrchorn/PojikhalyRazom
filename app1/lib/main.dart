@@ -6,16 +6,41 @@ import 'screens/main_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/registration_screen.dart';
 import 'screens/route_selection_screen.dart';
+import 'screens/driver_booking_request_screen.dart';
 import 'services/notification_service.dart';
 import 'theme/app_theme.dart';
+
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
+
+void _handleNotificationTap(Map<String, dynamic> data) {
+  if (FirebaseAuth.instance.currentUser == null) return;
+
+  final requestId = (data['bookingRequestId'] ?? '').toString().trim();
+  final messageType = (data['messageType'] ?? data['type'] ?? '').toString();
+  final bool isBookingFlow =
+      requestId.isNotEmpty || messageType.startsWith('booking_request');
+
+  if (!isBookingFlow || requestId.isEmpty) return;
+
+  final navigator = rootNavigatorKey.currentState;
+  if (navigator == null) return;
+
+  navigator.push(
+    MaterialPageRoute(
+      builder: (_) => DriverBookingRequestScreen(requestId: requestId),
+    ),
+  );
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  await NotificationService.instance.initialize();
   runApp(const MyApp());
+  await NotificationService.instance.initialize(
+    onNotificationTap: _handleNotificationTap,
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -26,6 +51,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: rootNavigatorKey,
       title: 'Pojikhaly Razom',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,

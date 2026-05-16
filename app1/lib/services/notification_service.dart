@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -24,9 +25,13 @@ class NotificationService {
   static const _channelDesc = 'Нові повiдомлення вiд iнших користувачiв';
 
   final _localNotifications = FlutterLocalNotificationsPlugin();
+  void Function(Map<String, dynamic>)? _onNotificationTap;
 
   // Call once from main() after Firebase.initializeApp()
-  Future<void> initialize() async {
+  Future<void> initialize({
+    void Function(Map<String, dynamic>)? onNotificationTap,
+  }) async {
+    _onNotificationTap = onNotificationTap;
     // Register background handler
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
@@ -42,6 +47,18 @@ class NotificationService {
     );
     await _localNotifications.initialize(
       const InitializationSettings(android: androidInit, iOS: iosInit),
+      onDidReceiveNotificationResponse: (response) {
+        final payload = response.payload;
+        if (payload == null || payload.isEmpty) return;
+        try {
+          final decoded = jsonDecode(payload);
+          if (decoded is Map<String, dynamic>) {
+            _emitNotificationTap(decoded);
+          }
+        } catch (_) {
+          // Ignore malformed payloads to avoid breaking notification flow.
+        }
+      },
     );
 
     // Request permission (Android 13+, iOS)
@@ -54,6 +71,17 @@ class NotificationService {
 
     // Handle foreground messages – show local notification
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+
+    FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      _emitNotificationTap(Map<String, dynamic>.from(message.data));
+    });
+
+    final initialMessage = await _fcm.getInitialMessage();
+    if (initialMessage != null) {
+      Future<void>.delayed(const Duration(milliseconds: 300), () {
+        _emitNotificationTap(Map<String, dynamic>.from(initialMessage.data));
+      });
+    }
 
     // iOS: show foreground notifications as banners
     await _fcm.setForegroundNotificationPresentationOptions(
@@ -111,6 +139,8 @@ class NotificationService {
     final notification = message.notification;
     if (notification == null) return;
 
+    final payloadData = Map<String, dynamic>.from(message.data);
+
     _localNotifications.show(
       notification.hashCode,
       notification.title,
@@ -130,7 +160,12 @@ class NotificationService {
           presentSound: true,
         ),
       ),
+      payload: jsonEncode(payloadData),
     );
+  }
+
+  void _emitNotificationTap(Map<String, dynamic> data) {
+    _onNotificationTap?.call(data);
   }
 }
 

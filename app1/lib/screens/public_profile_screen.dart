@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/user.dart' as app_user;
 import '../models/car.dart';
+import 'avatar_crop_screen.dart';
 import '../services/user_service.dart';
 import '../services/review_service.dart';
 import '../services/trip_service.dart';
@@ -95,24 +96,65 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
 
     try {
       final picker = ImagePicker();
-      final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+      final navigator = Navigator.of(context);
+      final pickedFile = await picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+        maxWidth: 2048,
+        maxHeight: 2048,
+        requestFullMetadata: false,
+      );
 
-      if (pickedFile != null) {
-        final file = File(pickedFile.path);
-        final url = await _userService.uploadProfilePhoto(userId: widget.userId, file: file);
-        await _userService.updatePhotoUrl(widget.userId, url);
-
-        if (!mounted) {
-          return;
-        }
-
-        _loadUserData(); // Перезавантажуємо дані, щоб оновити UI
+      if (pickedFile == null) {
+        return;
       }
-    } catch (e) {
+
+      final file = await navigator.push<File?>(
+        MaterialPageRoute(
+          builder: (_) => AvatarCropScreen(imageFile: File(pickedFile.path), accentColor: primaryTurquoise),
+        ),
+      );
+
+      if (file == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Кадрування скасовано')),
+        );
+        return;
+      }
+      
+      // Перевіряємо розмір файлу
+      final fileSize = file.lengthSync();
+      if (fileSize > 5 * 1024 * 1024) { // 5MB максимум
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Файл занадто великий (максимум 5MB)')),
+        );
+        return;
+      }
+
+      final url = await _userService.uploadProfilePhoto(userId: widget.userId, file: file);
+      await _userService.updatePhotoUrl(widget.userId, url);
+
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Помилка завантаження фото")));
+
+      _loadUserData(); // Перезавантажуємо дані, щоб оновити UI
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✅ Фото успішно завантажено!')),
+        );
+      }
+    } catch (e) {
+      debugPrint("Помилка завантаження фото: $e");
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Помилка завантаження фото: ${e.toString()}")),
+      );
     }
   }
 

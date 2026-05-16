@@ -152,6 +152,12 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
     );
 
     try {
+      final conflict = await _tripService.validateDriverScheduleForNewTrip(trip);
+      if (conflict != null) {
+        _showSnackBar(conflict);
+        return;
+      }
+
       await _tripService.createTrip(trip);
 
       if (mounted) {
@@ -162,6 +168,9 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
       }
     } catch (e) {
       debugPrint("Error: $e");
+      if (!mounted) return;
+      final message = e is StateError ? e.message.toString() : 'Не вдалося опублікувати поїздку';
+      _showSnackBar(message);
     }
   }
 

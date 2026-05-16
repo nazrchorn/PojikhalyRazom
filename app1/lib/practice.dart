@@ -1,4 +1,3 @@
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
@@ -23,7 +22,7 @@ void practiceRun()async {
       .doc(user.id)
       .get();
 
-  print("Отримано з Firestore: ${doc.data()}");
+  debugPrint("Отримано з Firestore: ${doc.data()}");
 
 }
 

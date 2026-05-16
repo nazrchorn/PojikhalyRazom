@@ -14,6 +14,7 @@ import 'route_selection_screen.dart';
 import 'trip_details_screen.dart';
 import 'review_screen.dart';
 import 'public_profile_screen.dart';
+import 'driver_booking_request_screen.dart';
 
 class MyTripsScreen extends StatefulWidget {
   const MyTripsScreen({super.key});
@@ -29,7 +30,10 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
   final ReviewService _reviewService = ReviewService();
   final BookingService _bookingService = BookingService();
   final Set<String> _promptedReviewTrips = <String>{};
+  final Set<String> _dismissedReviewPromptTrips = <String>{};
   bool _reviewFlowActive = false;
+  bool _reviewPromptInProgress = false;
+  bool _reviewPromptPrefsLoaded = false;
 
   final Color primaryTurquoise = const Color(0xFF2F8F7F);
 
@@ -37,6 +41,36 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _loadReviewPromptPreferences();
+  }
+
+  Future<void> _loadReviewPromptPreferences() async {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (currentUserId.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _reviewPromptPrefsLoaded = true;
+        });
+      }
+      return;
+    }
+
+    try {
+      final dismissed = await _userService.loadDismissedReviewPromptTripIds(currentUserId);
+      if (!mounted) return;
+
+      setState(() {
+        _dismissedReviewPromptTrips
+          ..clear()
+          ..addAll(dismissed);
+        _reviewPromptPrefsLoaded = true;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _reviewPromptPrefsLoaded = true;
+      });
+    }
   }
 
   @override
@@ -46,74 +80,91 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
   }
 
   Future<void> _maybePromptForReviews(List<Trip> trips, String currentUserId) async {
-    if (_reviewFlowActive || currentUserId.isEmpty) {
+    if (
+        !_reviewPromptPrefsLoaded ||
+        _reviewFlowActive ||
+        _reviewPromptInProgress ||
+        currentUserId.isEmpty
+    ) {
       return;
     }
 
-    final now = DateTime.now();
-    Trip? completedCandidate;
-    List<Map<String, dynamic>> pendingTargets = <Map<String, dynamic>>[];
+    _reviewPromptInProgress = true;
 
-    for (final trip in trips) {
-      final bool isCompleted =
-          trip.status != 'cancelled' &&
-          (trip.status == 'completed' || trip.isCompletedByTime(now)) &&
-          (trip.driverId == currentUserId || trip.passengers.contains(currentUserId)) &&
-          !_promptedReviewTrips.contains(trip.id);
-      if (!isCompleted) {
-        continue;
-      }
-
-      final targets = await _loadPendingReviewTargets(trip, currentUserId);
-      if (targets.isEmpty) {
-        continue;
-      }
-
-      completedCandidate = trip;
-      pendingTargets = targets;
-      break;
-    }
-
-    if (completedCandidate == null) {
-      return;
-    }
-
-    final Trip candidate = completedCandidate;
-    if (!mounted) return;
-
-    _promptedReviewTrips.add(candidate.id);
-    final bool? startReviews = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Поїздка завершена'),
-        content: Text(
-          candidate.driverId == currentUserId
-              ? 'Можна послідовно залишити відгуки для ${pendingTargets.length} пасажирів.'
-              : 'Можна залишити відгук про водія після завершення поїздки.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Пізніше'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            style: ElevatedButton.styleFrom(backgroundColor: primaryTurquoise),
-            child: const Text('Написати відгук', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-
-    if (startReviews != true) {
-      return;
-    }
-
-    _reviewFlowActive = true;
     try {
-      await _runSequentialReviewFlow(candidate, currentUserId, pendingTargets: pendingTargets);
+      final now = DateTime.now();
+      Trip? completedCandidate;
+      List<Map<String, dynamic>> pendingTargets = <Map<String, dynamic>>[];
+
+      for (final trip in trips) {
+        final bool isCompleted =
+            trip.status != 'cancelled' &&
+            (trip.status == 'completed' || trip.isCompletedByTime(now)) &&
+            (trip.driverId == currentUserId || trip.passengers.contains(currentUserId)) &&
+            !_dismissedReviewPromptTrips.contains(trip.id) &&
+            !_promptedReviewTrips.contains(trip.id);
+        if (!isCompleted) {
+          continue;
+        }
+
+        final targets = await _loadPendingReviewTargets(trip, currentUserId);
+        if (targets.isEmpty) {
+          continue;
+        }
+
+        completedCandidate = trip;
+        pendingTargets = targets;
+        break;
+      }
+
+      if (completedCandidate == null) {
+        return;
+      }
+
+      final Trip candidate = completedCandidate;
+      if (!mounted) return;
+
+      _promptedReviewTrips.add(candidate.id);
+      final bool? startReviews = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Поїздка завершена'),
+          content: Text(
+            candidate.driverId == currentUserId
+                ? 'Можна послідовно залишити відгуки для ${pendingTargets.length} пасажирів.'
+                : 'Можна залишити відгук про водія після завершення поїздки.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Пізніше'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: ElevatedButton.styleFrom(backgroundColor: primaryTurquoise),
+              child: const Text('Написати відгук', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+
+      if (startReviews != true) {
+        _dismissedReviewPromptTrips.add(candidate.id);
+        await _userService.dismissReviewPromptForever(
+          userId: currentUserId,
+          tripId: candidate.id,
+        );
+        return;
+      }
+
+      _reviewFlowActive = true;
+      try {
+        await _runSequentialReviewFlow(candidate, currentUserId, pendingTargets: pendingTargets);
+      } finally {
+        _reviewFlowActive = false;
+      }
     } finally {
-      _reviewFlowActive = false;
+      _reviewPromptInProgress = false;
     }
   }
 
@@ -422,51 +473,73 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
                                          Text(routeText, style: const TextStyle(color: Colors.black54)),
                                          if (request.pickupAddress != null) ...[
                                            const SizedBox(height: 4),
-                                           Container(
-                                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                             decoration: BoxDecoration(
-                                               color: primaryTurquoise.withValues(alpha: 0.08),
-                                               borderRadius: BorderRadius.circular(6),
-                                             ),
-                                             child: Row(
-                                               children: [
-                                                 Icon(Icons.location_on_outlined, size: 14, color: primaryTurquoise),
-                                                 const SizedBox(width: 6),
-                                                 Expanded(
-                                                   child: Text(
-                                                     'Посадка: ${request.pickupAddress}',
-                                                     maxLines: 1,
-                                                     overflow: TextOverflow.ellipsis,
-                                                     style: const TextStyle(fontSize: 11, color: Colors.black54),
-                                                   ),
-                                                 ),
-                                               ],
-                                             ),
-                                           ),
+                                            InkWell(
+                                              borderRadius: BorderRadius.circular(6),
+                                              onTap: () {
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (_) => DriverBookingRequestScreen(requestId: request.id),
+                                                  ),
+                                                );
+                                              },
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: primaryTurquoise.withValues(alpha: 0.08),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: Row(
+                                                  children: [
+                                                    Icon(Icons.location_on_outlined, size: 14, color: primaryTurquoise),
+                                                    const SizedBox(width: 6),
+                                                    Expanded(
+                                                      child: Text(
+                                                        'Посадка: ${request.pickupAddress}',
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                        style: const TextStyle(fontSize: 11, color: Colors.black54),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
                                          ],
                                          if (request.dropoffAddress != null) ...[
                                            const SizedBox(height: 3),
-                                           Container(
-                                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                             decoration: BoxDecoration(
-                                               color: primaryTurquoise.withValues(alpha: 0.08),
-                                               borderRadius: BorderRadius.circular(6),
-                                             ),
-                                             child: Row(
-                                               children: [
-                                                 Icon(Icons.flag_outlined, size: 14, color: primaryTurquoise),
-                                                 const SizedBox(width: 6),
-                                                 Expanded(
-                                                   child: Text(
-                                                     'Висадка: ${request.dropoffAddress}',
-                                                     maxLines: 1,
-                                                     overflow: TextOverflow.ellipsis,
-                                                     style: const TextStyle(fontSize: 11, color: Colors.black54),
-                                                   ),
-                                                 ),
-                                               ],
-                                             ),
-                                           ),
+                                            InkWell(
+                                              borderRadius: BorderRadius.circular(6),
+                                              onTap: () {
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (_) => DriverBookingRequestScreen(requestId: request.id),
+                                                  ),
+                                                );
+                                              },
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: primaryTurquoise.withValues(alpha: 0.08),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: Row(
+                                                  children: [
+                                                    Icon(Icons.flag_outlined, size: 14, color: primaryTurquoise),
+                                                    const SizedBox(width: 6),
+                                                    Expanded(
+                                                      child: Text(
+                                                        'Висадка: ${request.dropoffAddress}',
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                        style: const TextStyle(fontSize: 11, color: Colors.black54),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
                                          ],
                                          const SizedBox(height: 6),
                                          OutlinedButton.icon(
@@ -489,6 +562,26 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
                                              minimumSize: const Size.fromHeight(34),
                                            ),
                                          ),
+                                          const SizedBox(height: 6),
+                                          OutlinedButton.icon(
+                                            onPressed: () {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (_) => DriverBookingRequestScreen(
+                                                    requestId: request.id,
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                            icon: const Icon(Icons.map_outlined, size: 16),
+                                            label: const Text('Карта та прийняття запиту'),
+                                            style: OutlinedButton.styleFrom(
+                                              foregroundColor: primaryTurquoise,
+                                              side: BorderSide(color: primaryTurquoise.withValues(alpha: 0.45)),
+                                              minimumSize: const Size.fromHeight(34),
+                                            ),
+                                          ),
                                         if (requestedPrice != null) ...[
                                           const SizedBox(height: 4),
                                           Text(

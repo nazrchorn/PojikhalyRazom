@@ -180,6 +180,15 @@ exports.onNewMessagePush = onDocumentCreated(
       ? SYSTEM_CHAT_NAME
       : (senderSnap?.exists ? (senderSnap.data()?.name || 'Нове повідомлення') : 'Нове повідомлення');
 
+    const metadata = message.metadata && typeof message.metadata === 'object'
+      ? message.metadata
+      : {};
+    const messageType = String(message.type || '');
+    const tripId = String(message.tripId || '');
+    const bookingRequestId = String(metadata.bookingRequestId || '');
+    const passengerId = String(metadata.passengerId || '');
+    const passengerName = String(metadata.passengerName || '');
+
     const payload = {
       token,
       notification: {
@@ -188,9 +197,14 @@ exports.onNewMessagePush = onDocumentCreated(
       },
       data: {
         type: 'chat_message',
+        messageType,
         senderId: String(senderId),
         receiverId: String(receiverId),
         messageId: String(event.params.messageId || ''),
+        tripId,
+        bookingRequestId,
+        passengerId,
+        passengerName,
         click_action: 'FLUTTER_NOTIFICATION_CLICK'
       },
       android: {

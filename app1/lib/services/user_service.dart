@@ -7,6 +7,7 @@ import '../models/user.dart' as app_user;
 class UserService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+  static const String _dismissedReviewPromptsField = 'dismissedReviewPromptTripIds';
 
   Future<Map<String, dynamic>?> loadUserData(String userId) async {
     final doc = await _firestore.collection('users').doc(userId).get();
@@ -33,14 +34,47 @@ class UserService {
     return _firestore.collection('users').doc(userId).update({'photoUrl': photoUrl});
   }
 
-  Future<String> uploadProfilePhoto({
-    required String userId,
-    required File file,
-  }) async {
-    final ref = _storage.ref().child('profile_photos/$userId/avatar.jpg');
-    await ref.putFile(file);
-    return ref.getDownloadURL();
+  Future<Set<String>> loadDismissedReviewPromptTripIds(String userId) async {
+    if (userId.trim().isEmpty) return <String>{};
+    final doc = await _firestore.collection('users').doc(userId).get();
+    final data = doc.data() ?? <String, dynamic>{};
+    final raw = data[_dismissedReviewPromptsField];
+    if (raw is! List) return <String>{};
+    return raw.map((item) => item.toString()).where((id) => id.trim().isNotEmpty).toSet();
   }
+
+  Future<void> dismissReviewPromptForever({
+    required String userId,
+    required String tripId,
+  }) async {
+    if (userId.trim().isEmpty || tripId.trim().isEmpty) return;
+    await _firestore.collection('users').doc(userId).set({
+      _dismissedReviewPromptsField: FieldValue.arrayUnion([tripId]),
+    }, SetOptions(merge: true));
+  }
+
+   Future<String> uploadProfilePhoto({
+     required String userId,
+     required File file,
+   }) async {
+     try {
+       if (!file.existsSync()) {
+         throw Exception('Файл не знайдено: ${file.path}');
+       }
+       
+       final fileSize = file.lengthSync();
+       if (fileSize == 0) {
+         throw Exception('Файл порожній');
+       }
+       
+       final ref = _storage.ref().child('profile_photos/$userId/avatar.jpg');
+       await ref.putFile(file);
+       final downloadUrl = await ref.getDownloadURL();
+       return downloadUrl;
+     } catch (e) {
+       rethrow;
+     }
+   }
 
   Future<void> addCar(String userId, Car car) {
     return _firestore.collection('users').doc(userId).update({

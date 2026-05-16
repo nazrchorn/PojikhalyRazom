@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/user.dart';
+import 'avatar_crop_screen.dart';
 import '../services/user_service.dart';
 
 class EditProfileScreen extends StatefulWidget {
@@ -37,11 +38,50 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _musicType = widget.user.musicType;
   }
 
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
-    if (pickedFile != null) setState(() => _selectedImage = File(pickedFile.path));
-  }
+   Future<void> _pickImage() async {
+     try {
+       final picker = ImagePicker();
+       final navigator = Navigator.of(context);
+       final pickedFile = await picker.pickImage(
+         source: ImageSource.gallery,
+         imageQuality: 85,
+         maxWidth: 2048,
+         maxHeight: 2048,
+         requestFullMetadata: false,
+       );
+       if (pickedFile == null || !mounted) return;
+
+       final croppedFile = await navigator.push<File?>(
+         MaterialPageRoute(
+           builder: (_) => AvatarCropScreen(imageFile: File(pickedFile.path), accentColor: primaryTurquoise),
+         ),
+       );
+
+       if (croppedFile == null) {
+         if (!mounted) return;
+         ScaffoldMessenger.of(context).showSnackBar(
+           const SnackBar(content: Text('Кадрування скасовано')),
+         );
+         return;
+       }
+
+       if (!mounted) return;
+       setState(() => _selectedImage = croppedFile);
+
+       if (croppedFile.lengthSync() > 5 * 1024 * 1024) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           const SnackBar(content: Text('Файл занадто великий (максимум 5MB)')),
+         );
+         return;
+       }
+     } catch (e) {
+       debugPrint('Помилка при виборі фото: $e');
+       if (!mounted) return;
+       ScaffoldMessenger.of(context).showSnackBar(
+         SnackBar(content: Text('Помилка при виборі фото: ${e.toString()}')),
+       );
+     }
+   }
 
   @override
   Widget build(BuildContext context) {

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:math' as math;
 import '../models/trip.dart';
 
 class TripService {
@@ -8,7 +9,93 @@ class TripService {
 
   /// Створення нової поїздки
   Future<void> createTrip(Trip trip) async {
+    final conflict = await validateDriverScheduleForNewTrip(trip);
+    if (conflict != null) {
+      throw StateError(conflict);
+    }
     await tripsCollection.add(trip.toMap());
+  }
+
+  Future<String?> validateDriverScheduleForNewTrip(Trip candidate) async {
+    final snapshot = await tripsCollection
+        .where('driverId', isEqualTo: candidate.driverId)
+        .get();
+
+    final existingTrips = snapshot.docs
+        .map((doc) => Trip.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+        .where((trip) => trip.status != 'cancelled' && trip.id != candidate.id)
+        .toList();
+
+    final candidateArrival = _plannedArrival(candidate);
+
+    for (final trip in existingTrips) {
+      final existingArrival = _plannedArrival(trip);
+      final hasOverlap =
+          candidate.departureTime.isBefore(existingArrival) && candidateArrival.isAfter(trip.departureTime);
+      if (!hasOverlap) continue;
+
+      return 'Конфлікт у розкладі: нова поїздка перетинається в часі з ${trip.origin.city} -> ${trip.destination.city} (${_formatDateTime(trip.departureTime)}).';
+    }
+
+    final timeline = <Trip>[...existingTrips, candidate]
+      ..sort((a, b) => a.departureTime.compareTo(b.departureTime));
+
+    for (int i = 0; i < timeline.length - 1; i++) {
+      final prev = timeline[i];
+      final next = timeline[i + 1];
+      final touchesCandidate = prev.id == candidate.id || next.id == candidate.id;
+      if (!touchesCandidate) {
+        continue;
+      }
+
+      final prevArrival = _plannedArrival(prev);
+      final transferMinutes = _estimateTransferMinutes(prev.destination.lat, prev.destination.lng, next.origin.lat, next.origin.lng);
+      final availableGap = next.departureTime.difference(prevArrival).inMinutes;
+
+      if (availableGap < transferMinutes) {
+        return 'Недостатньо часу між рейсами: після ${prev.origin.city} -> ${prev.destination.city} треба дістатися до ${next.origin.city}. Потрібно щонайменше $transferMinutes хв.';
+      }
+    }
+
+    return null;
+  }
+
+  DateTime _plannedArrival(Trip trip) {
+    if (trip.estimatedDurationMinutes != null && trip.estimatedDurationMinutes! > 0) {
+      return trip.departureTime.add(Duration(minutes: trip.estimatedDurationMinutes!));
+    }
+    final fallbackMinutes = _estimateTransferMinutes(trip.origin.lat, trip.origin.lng, trip.destination.lat, trip.destination.lng);
+    return trip.departureTime.add(Duration(minutes: fallbackMinutes));
+  }
+
+  int _estimateTransferMinutes(double fromLat, double fromLng, double toLat, double toLng) {
+    final distanceKm = _haversineKm(fromLat, fromLng, toLat, toLng);
+    if (distanceKm <= 1.0) return 0;
+
+    // Conservative average speed so repositioning is not underestimated.
+    final minutes = (distanceKm / 70.0) * 60.0;
+    return minutes.ceil();
+  }
+
+  double _haversineKm(double lat1, double lon1, double lat2, double lon2) {
+    const earthRadiusKm = 6371.0;
+    final dLat = _degToRad(lat2 - lat1);
+    final dLon = _degToRad(lon2 - lon1);
+    final a =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_degToRad(lat1)) * math.cos(_degToRad(lat2)) * math.sin(dLon / 2) * math.sin(dLon / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadiusKm * c;
+  }
+
+  double _degToRad(double deg) => deg * (math.pi / 180.0);
+
+  String _formatDateTime(DateTime dt) {
+    final dd = dt.day.toString().padLeft(2, '0');
+    final mm = dt.month.toString().padLeft(2, '0');
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final min = dt.minute.toString().padLeft(2, '0');
+    return '$dd.$mm $hh:$min';
   }
 
   /// Отримати всі поїздки

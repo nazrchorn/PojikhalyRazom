@@ -1,11 +1,11 @@
 {
-    "name": "app1",
-    "short_name": "app1",
+    "name": "Поїхали Разом",
+    "short_name": "Поїхали",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Сервіс спільних поїздок Україною.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -69,6 +69,19 @@ class BookingService {
             .toList());
   }
 
+  Stream<BookingRequest?> watchRequestById(String requestId) {
+    return _requests.doc(requestId).snapshots().map((doc) {
+      if (!doc.exists || doc.data() == null) return null;
+      return BookingRequest.fromMap(doc.id, doc.data()!);
+    });
+  }
+
+  Future<BookingRequest?> getRequestById(String requestId) async {
+    final doc = await _requests.doc(requestId).get();
+    if (!doc.exists || doc.data() == null) return null;
+    return BookingRequest.fromMap(doc.id, doc.data()!);
+  }
+
   Stream<BookingRequest?> watchPassengerLatestRequest(String tripId, String passengerId) {
     return _requests
         .where('tripId', isEqualTo: tripId)
