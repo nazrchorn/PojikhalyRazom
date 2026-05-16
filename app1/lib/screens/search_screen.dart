@@ -20,11 +20,6 @@ class _SearchScreenState extends State<SearchScreen> {
   late String _fromCity;
   late String _toCity;
   DateTime? _selectedDate;
-  DateTime? _dateRangeStart;
-  DateTime? _dateRangeEnd;
-  bool _allowSmoking = true;
-  bool _allowPets = true;
-  bool _allowChildren = true;
 
   final Color primaryTurquoise = const Color(0xFF2F8F7F);
 
@@ -91,11 +86,6 @@ class _SearchScreenState extends State<SearchScreen> {
             fromCity: _fromCity,
             toCity: _toCity,
             selectedDate: _selectedDate!,
-            dateRangeStart: _dateRangeStart,
-            dateRangeEnd: _dateRangeEnd,
-            allowSmoking: _allowSmoking,
-            allowPets: _allowPets,
-            allowChildren: _allowChildren,
           ),
         ),
       );
@@ -164,90 +154,53 @@ class _SearchScreenState extends State<SearchScreen> {
               _buildCitySelector("Звідки", _fromCity, Icons.radio_button_checked, true),
               const SizedBox(height: 12),
               _buildCitySelector("Куди", _toCity, Icons.location_on, false),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8)],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text("Дата", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    const SizedBox(height: 10),
-                    InkWell(
-                      onTap: _selectSingleDate,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.calendar_today_rounded, size: 18, color: primaryTurquoise),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                _selectedDate != null
-                                    ? "${_selectedDate!.day}.${_selectedDate!.month}.${_selectedDate!.year}"
-                                    : "Оберіть дату",
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: _selectedDate != null ? Colors.black : Colors.grey,
-                                ),
-                              ),
-                            ),
-                            Icon(Icons.arrow_drop_down_rounded, color: Colors.grey.shade500),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8)],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text("Фільтри", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    const SizedBox(height: 10),
-                    CheckboxListTile(
-                      value: _allowSmoking,
-                      onChanged: (val) => setState(() => _allowSmoking = val ?? true),
-                      title: const Text("Дозвіл на паління", style: TextStyle(fontSize: 13)),
-                      contentPadding: EdgeInsets.zero,
-                      controlAffinity: ListTileControlAffinity.leading,
-                    ),
-                    CheckboxListTile(
-                      value: _allowPets,
-                      onChanged: (val) => setState(() => _allowPets = val ?? true),
-                      title: const Text("З тваринами", style: TextStyle(fontSize: 13)),
-                      contentPadding: EdgeInsets.zero,
-                      controlAffinity: ListTileControlAffinity.leading,
-                    ),
-                    CheckboxListTile(
-                      value: _allowChildren,
-                      onChanged: (val) => setState(() => _allowChildren = val ?? true),
-                      title: const Text("З дітьми", style: TextStyle(fontSize: 13)),
-                      contentPadding: EdgeInsets.zero,
-                      controlAffinity: ListTileControlAffinity.leading,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
+               const SizedBox(height: 16),
+               Container(
+                 padding: const EdgeInsets.all(14),
+                 decoration: BoxDecoration(
+                   color: Colors.white,
+                   borderRadius: BorderRadius.circular(14),
+                   boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8)],
+                 ),
+                 child: Column(
+                   crossAxisAlignment: CrossAxisAlignment.start,
+                   children: [
+                     const Text("Дата", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                     const SizedBox(height: 10),
+                     InkWell(
+                       onTap: _selectSingleDate,
+                       child: Container(
+                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                         decoration: BoxDecoration(
+                           color: Colors.grey.shade50,
+                           borderRadius: BorderRadius.circular(10),
+                           border: Border.all(color: Colors.grey.shade300),
+                         ),
+                         child: Row(
+                           children: [
+                             Icon(Icons.calendar_today_rounded, size: 18, color: primaryTurquoise),
+                             const SizedBox(width: 10),
+                             Expanded(
+                               child: Text(
+                                 _selectedDate != null
+                                     ? "${_selectedDate!.day}.${_selectedDate!.month}.${_selectedDate!.year}"
+                                     : "Оберіть дату",
+                                 style: TextStyle(
+                                   fontWeight: FontWeight.w600,
+                                   color: _selectedDate != null ? Colors.black : Colors.grey,
+                                 ),
+                               ),
+                             ),
+                             Icon(Icons.arrow_drop_down_rounded, color: Colors.grey.shade500),
+                           ],
+                         ),
+                       ),
+                     ),
+                   ],
+                 ),
+               ),
+               const SizedBox(height: 20),
+               ElevatedButton(
                 onPressed: _onSearch,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryTurquoise,
