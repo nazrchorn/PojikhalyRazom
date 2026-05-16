@@ -17,8 +17,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final AuthService _authService = AuthService();
 
   // Твоя фірмова палітра
-  final Color primaryTurquoise = const Color(0xFF5DD9C1);
-  final Color backgroundDeep = const Color(0xFFF2F5F8);
+  final Color primaryTurquoise = const Color(0xFF2F8F7F);
+  final Color backgroundDeep = const Color(0xFFF6FCFA);
 
   Future<void> _handleLogin() async {
     if (emailController.text.isEmpty || passwordController.text.isEmpty) {
@@ -56,7 +56,8 @@ class _LoginScreenState extends State<LoginScreen> {
       appBar: AppBar(
         title: const Text("Вхід", style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFFF4FBF9),
+        surfaceTintColor: const Color(0xFFF4FBF9),
         elevation: 0,
         foregroundColor: Colors.black87,
       ),

@@ -11,7 +11,7 @@ class MessangerScreen extends StatefulWidget {
 }
 
 class _MessangerScreenState extends State<MessangerScreen> {
-  final Color primaryTurquoise = const Color(0xFF5DD9C1);
+  final Color primaryTurquoise = const Color(0xFF2F8F7F);
   final ChatService _chatService = ChatService();
 
   Map<String, dynamic> _safeData(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -60,11 +60,12 @@ class _MessangerScreenState extends State<MessangerScreen> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBFBFB),
+      backgroundColor: const Color(0xFFF6FCFA),
       appBar: AppBar(
         title: const Text('Чати', style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF4FBF9),
+        surfaceTintColor: const Color(0xFFF4FBF9),
         foregroundColor: Colors.black87,
         elevation: 0,
       ),
@@ -131,9 +132,10 @@ class _MessangerScreenState extends State<MessangerScreen> {
                 future: _chatService.loadUserSummary(preview.partnerId),
                 builder: (context, userSnapshot) {
                   final userData = userSnapshot.data ?? const <String, dynamic>{};
+                  final bool isSystemChat = preview.partnerId == ChatService.systemChatUserId;
                   final userName = (userData['name'] as String?)?.trim();
                   final displayName = (userName == null || userName.isEmpty)
-                      ? 'Користувач'
+                      ? (isSystemChat ? ChatService.systemChatName : 'Користувач')
                       : userName;
                   final photoUrl = userData['photoUrl'] as String?;
 
@@ -158,7 +160,10 @@ class _MessangerScreenState extends State<MessangerScreen> {
                             ? NetworkImage(photoUrl)
                             : null,
                         child: (photoUrl == null || photoUrl.isEmpty)
-                            ? const Icon(Icons.person, color: Colors.black54)
+                            ? Icon(
+                                isSystemChat ? Icons.notifications_active_rounded : Icons.person,
+                                color: Colors.black54,
+                              )
                             : null,
                       ),
                       title: Text(
@@ -426,9 +431,12 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isSystemChat = widget.partnerId == ChatService.systemChatUserId;
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6F8),
+      backgroundColor: const Color(0xFFF6FCFA),
       appBar: AppBar(
+        backgroundColor: const Color(0xFFF4FBF9),
+        surfaceTintColor: const Color(0xFFF4FBF9),
         titleSpacing: 0,
         title: Row(
           children: [
@@ -502,7 +510,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                           constraints: const BoxConstraints(maxWidth: 290),
                           decoration: BoxDecoration(
-                            color: isMine ? const Color(0xFF5DD9C1) : Colors.white,
+                            color: isMine ? const Color(0xFF2F8F7F) : Colors.white,
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Column(
@@ -558,86 +566,101 @@ class _ConversationScreenState extends State<ConversationScreen> {
               },
             ),
           ),
-          SafeArea(
-            top: false,
-            child: Container(
-              color: Colors.white,
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_editingDocId != null)
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 6),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE0F7F4),
-                        borderRadius: BorderRadius.circular(12),
+          if (!isSystemChat)
+            SafeArea(
+              top: false,
+              child: Container(
+                color: Colors.white,
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_editingDocId != null)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE0F7F4),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF2F8F7F)),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'Редагування повiдомлення',
+                                style: TextStyle(fontSize: 13, color: Color(0xFF2E7D70)),
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: _cancelEdit,
+                              child: const Icon(Icons.close_rounded, size: 18, color: Colors.grey),
+                            ),
+                          ],
+                        ),
                       ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF5DD9C1)),
-                          const SizedBox(width: 8),
-                          const Expanded(
-                            child: Text(
-                              'Редагування повiдомлення',
-                              style: TextStyle(fontSize: 13, color: Color(0xFF2E7D70)),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _messageController,
+                            minLines: 1,
+                            maxLines: 4,
+                            decoration: InputDecoration(
+                              hintText: _editingDocId != null
+                                  ? 'Вiдредагуйте повiдомлення...'
+                                  : 'Ваше повiдомлення...',
+                              filled: true,
+                              fillColor: const Color(0xFFF1F3F5),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(22),
+                                borderSide: BorderSide.none,
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                             ),
                           ),
-                          GestureDetector(
-                            onTap: _cancelEdit,
-                            child: const Icon(Icons.close_rounded, size: 18, color: Colors.grey),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          height: 44,
+                          width: 44,
+                          child: ElevatedButton(
+                            onPressed: _sendMessage,
+                            style: ElevatedButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              shape: const CircleBorder(),
+                              backgroundColor: const Color(0xFF2F8F7F),
+                              elevation: 0,
+                            ),
+                            child: Icon(
+                              _editingDocId != null
+                                  ? Icons.check_rounded
+                                  : Icons.send_rounded,
+                              color: Colors.white,
+                            ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _messageController,
-                          minLines: 1,
-                          maxLines: 4,
-                          decoration: InputDecoration(
-                            hintText: _editingDocId != null
-                                ? 'Вiдредагуйте повiдомлення...'
-                                : 'Ваше повiдомлення...',
-                            filled: true,
-                            fillColor: const Color(0xFFF1F3F5),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(22),
-                              borderSide: BorderSide.none,
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      SizedBox(
-                        height: 44,
-                        width: 44,
-                        child: ElevatedButton(
-                          onPressed: _sendMessage,
-                          style: ElevatedButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            shape: const CircleBorder(),
-                            backgroundColor: const Color(0xFF5DD9C1),
-                            elevation: 0,
-                          ),
-                          child: Icon(
-                            _editingDocId != null
-                                ? Icons.check_rounded
-                                : Icons.send_rounded,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
+              ),
+            )
+          else
+            SafeArea(
+              top: false,
+              child: Container(
+                color: Colors.white,
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: const Text(
+                  'Системний чат: вiдправка повiдомлень вимкнена',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey),
+                ),
               ),
             ),
-          ),
         ],
       ),
     );

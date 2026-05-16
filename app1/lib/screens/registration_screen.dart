@@ -17,19 +17,17 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController phoneController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  final TextEditingController carBrandController = TextEditingController();
-  final TextEditingController carModelController = TextEditingController();
-  final TextEditingController carYearController = TextEditingController();
-  final TextEditingController carColorController = TextEditingController();
-  final TextEditingController carSeatsController = TextEditingController();
 
   DateTime? selectedBirthDate;
   String selectedGender = "Чоловік";
   bool _isPasswordVisible = false;
   bool _isLoading = false;
 
-  final Color primaryTurquoise = const Color(0xFF5DD9C1);
-  final Color backgroundDeep = const Color(0xFFF2F5F8);
+  final Color primaryTurquoise = const Color(0xFF2F8F7F);
+  final Color backgroundDeep = const Color(0xFFF3F8F7);
+  final Color accentTurquoiseDark = const Color(0xFF2F8F7F);
+  final Color accentTurquoiseSoft = const Color(0xFFDDF5F1);
+  final Color accentTurquoiseSurface = const Color(0xFFF2FBF8);
 
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -57,11 +55,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     emailController.dispose();
     phoneController.dispose();
     passwordController.dispose();
-    carBrandController.dispose();
-    carModelController.dispose();
-    carYearController.dispose();
-    carColorController.dispose();
-    carSeatsController.dispose();
     super.dispose();
   }
 
@@ -76,9 +69,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       return;
     }
 
-    final int carYear = int.parse(carYearController.text.trim());
-    final int carSeats = int.parse(carSeatsController.text.trim());
-
     setState(() => _isLoading = true);
     try {
       await _authService.registerUser(
@@ -89,11 +79,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           password: passwordController.text.trim(),
           gender: selectedGender,
           birthDate: selectedBirthDate!,
-          carBrand: carBrandController.text.trim(),
-          carModel: carModelController.text.trim(),
-          carYear: carYear,
-          carColor: carColorController.text.trim(),
-          carSeats: carSeats,
         ),
       );
 
@@ -126,7 +111,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     String? Function(String?)? validator,
   }) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 14),
       child: TextFormField(
         controller: controller,
         keyboardType: keyboardType,
@@ -134,7 +119,14 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         validator: validator,
         decoration: InputDecoration(
           labelText: label,
-          prefixIcon: Icon(icon, color: primaryTurquoise, size: 20),
+          prefixIcon: Container(
+            margin: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: accentTurquoiseSoft,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: accentTurquoiseDark, size: 18),
+          ),
           suffixIcon: isPassword
               ? IconButton(
                   onPressed: () {
@@ -149,8 +141,16 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           filled: true,
           fillColor: Colors.white,
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(15),
+            borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: accentTurquoiseSoft),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: primaryTurquoise, width: 1.5),
           ),
           contentPadding: const EdgeInsets.symmetric(vertical: 18),
         ),
@@ -163,7 +163,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.04),
@@ -177,7 +177,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         children: [
           Text(
             title,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: accentTurquoiseDark),
           ),
           const SizedBox(height: 14),
           ...children,
@@ -216,29 +216,37 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
     return null;
   }
 
-  String? _yearValidator(String? value) {
-    final String? requiredError = _requiredValidator(value);
-    if (requiredError != null) {
-      return requiredError;
-    }
-    final int? parsed = int.tryParse(value!.trim());
-    final int currentYear = DateTime.now().year;
-    if (parsed == null || parsed < 1980 || parsed > currentYear + 1) {
-      return 'Некоректний рік';
-    }
-    return null;
-  }
-
-  String? _seatsValidator(String? value) {
-    final String? requiredError = _requiredValidator(value);
-    if (requiredError != null) {
-      return requiredError;
-    }
-    final int? parsed = int.tryParse(value!.trim());
-    if (parsed == null || parsed < 1 || parsed > 8) {
-      return 'Вкажіть 1-8 місць';
-    }
-    return null;
+  Widget _buildHero() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [primaryTurquoise.withValues(alpha: 0.18), accentTurquoiseSoft],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: primaryTurquoise.withValues(alpha: 0.25)),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.person_add_alt_1_rounded, size: 20),
+              SizedBox(width: 8),
+              Text('Створення профілю', style: TextStyle(fontWeight: FontWeight.w700)),
+            ],
+          ),
+          SizedBox(height: 8),
+          Text(
+            'Заповніть базову інформацію. Дані про авто додасте вже в профілі пізніше.',
+            style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -248,7 +256,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       appBar: AppBar(
         title: const Text("Реєстрація", style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFFF4FBF9),
+        surfaceTintColor: const Color(0xFFF4FBF9),
         elevation: 0,
         foregroundColor: Colors.black87,
       ),
@@ -260,18 +269,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: primaryTurquoise.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: const Text(
-                    'Заповніть дані профілю та авто. Це займає 1-2 хвилини.',
-                    style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w500),
-                  ),
-                ),
+                _buildHero(),
                 const SizedBox(height: 18),
                 _buildSectionCard(
                   title: 'Особиста інформація',
@@ -306,8 +304,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                               decoration: BoxDecoration(
-                                color: backgroundDeep,
+                                color: accentTurquoiseSurface,
                                 borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: accentTurquoiseSoft),
                               ),
                               child: Row(
                                 children: [
@@ -333,8 +332,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 1),
                             decoration: BoxDecoration(
-                              color: backgroundDeep,
+                                color: accentTurquoiseSurface,
                               borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: accentTurquoiseSoft),
                             ),
                             child: DropdownButtonHideUnderline(
                               child: DropdownButton<String>(
@@ -353,53 +353,6 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                           ),
                         ),
                       ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                _buildSectionCard(
-                  title: 'Перше авто',
-                  children: [
-                    _buildTextField(
-                      carBrandController,
-                      'Марка',
-                      Icons.directions_car_filled_outlined,
-                      validator: _requiredValidator,
-                    ),
-                    _buildTextField(
-                      carModelController,
-                      'Модель',
-                      Icons.info_outline,
-                      validator: _requiredValidator,
-                    ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildTextField(
-                            carColorController,
-                            'Колір',
-                            Icons.palette_outlined,
-                            validator: _requiredValidator,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _buildTextField(
-                            carYearController,
-                            'Рік',
-                            Icons.calendar_today,
-                            keyboardType: TextInputType.number,
-                            validator: _yearValidator,
-                          ),
-                        ),
-                      ],
-                    ),
-                    _buildTextField(
-                      carSeatsController,
-                      'Кількість місць',
-                      Icons.event_seat_outlined,
-                      keyboardType: TextInputType.number,
-                      validator: _seatsValidator,
                     ),
                   ],
                 ),

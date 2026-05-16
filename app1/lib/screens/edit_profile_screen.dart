@@ -23,7 +23,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   File? _selectedImage;
   final UserService _userService = UserService();
-  final Color primaryTurquoise = const Color(0xFF5DD9C1);
+  final Color primaryTurquoise = const Color(0xFF2F8F7F);
   final Color bgTurquoiseLight = const Color(0xFFE8F8F5);
 
   @override
@@ -46,11 +46,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFBFBFB),
+      backgroundColor: const Color(0xFFF6FCFA),
       appBar: AppBar(
         title: const Text("Редагувати профіль", style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF4FBF9),
+        surfaceTintColor: const Color(0xFFF4FBF9),
         elevation: 0,
         foregroundColor: Colors.black87,
       ),

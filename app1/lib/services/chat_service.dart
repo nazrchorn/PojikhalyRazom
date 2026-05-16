@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ChatService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static const String systemChatUserId = 'poikhali_system';
+  static const String systemChatName = 'Поїхали Разом';
 
   /// Потік кількості непрочитаних повідомлень користувача
   Stream<int> getUnreadMessagesCount(String uid) {
@@ -55,6 +57,24 @@ class ChatService {
     });
   }
 
+  Future<void> sendSystemMessage({
+    required String receiverId,
+    required String text,
+    String tripId = '',
+    String type = 'system',
+  }) async {
+    await _firestore.collection('messages').add({
+      'tripId': tripId,
+      'senderId': systemChatUserId,
+      'receiverId': receiverId,
+      'text': text,
+      'type': type,
+      'sentAt': FieldValue.serverTimestamp(),
+      'isRead': false,
+      'isSystem': true,
+    });
+  }
+
   /// Редагувати повідомлення
   Future<void> editMessage(String docId, String newText) async {
     await _firestore.collection('messages').doc(docId).update({
@@ -91,6 +111,12 @@ class ChatService {
 
   /// Завантажити інформацію про користувача для чату
   Future<Map<String, dynamic>?> loadUserSummary(String userId) async {
+    if (userId == systemChatUserId) {
+      return <String, dynamic>{
+        'name': systemChatName,
+        'photoUrl': null,
+      };
+    }
     final userDoc = await _firestore.collection('users').doc(userId).get();
     return userDoc.data();
   }

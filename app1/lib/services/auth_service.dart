@@ -8,11 +8,6 @@ class RegistrationRequest {
   final String password;
   final String gender;
   final DateTime birthDate;
-  final String carBrand;
-  final String carModel;
-  final int carYear;
-  final String carColor;
-  final int carSeats;
 
   const RegistrationRequest({
     required this.name,
@@ -21,11 +16,6 @@ class RegistrationRequest {
     required this.password,
     required this.gender,
     required this.birthDate,
-    required this.carBrand,
-    required this.carModel,
-    required this.carYear,
-    required this.carColor,
-    required this.carSeats,
   });
 }
 
@@ -70,15 +60,7 @@ class AuthService {
       'photoUrl': null,
       'tripsCompleted': 0,
       'rating': 5.0,
-      'cars': [
-        {
-          'brand': request.carBrand,
-          'model': request.carModel,
-          'year': request.carYear,
-          'color': request.carColor,
-          'seats': request.carSeats,
-        }
-      ],
+      'cars': <Map<String, dynamic>>[],
     };
 
     await _firestore.collection('users').doc(firebaseUser.uid).set(userData);

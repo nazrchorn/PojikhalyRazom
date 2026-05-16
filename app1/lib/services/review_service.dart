@@ -9,7 +9,6 @@ class ReviewService {
     return _firestore
         .collection('reviews')
         .where('toUserId', isEqualTo: userId)
-        .orderBy('createdAt', descending: true)
         .snapshots();
   }
 
@@ -19,12 +18,13 @@ class ReviewService {
       final snapshot = await _firestore
           .collection('reviews')
           .where('toUserId', isEqualTo: userId)
-          .orderBy('createdAt', descending: true)
           .get();
 
-      return snapshot.docs
+      final reviews = snapshot.docs
           .map((doc) => Review.fromMap(doc.data(), doc.id))
           .toList();
+      reviews.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return reviews;
     } catch (e) {
       rethrow;
     }
@@ -79,6 +79,14 @@ class ReviewService {
     }
   }
 
+  Future<int> getReviewCountForUser(String userId) async {
+    final snapshot = await _firestore
+        .collection('reviews')
+        .where('toUserId', isEqualTo: userId)
+        .get();
+    return snapshot.docs.length;
+  }
+
   /// Отримати відгуки за конкретною поїздкою
   Stream<QuerySnapshot<Map<String, dynamic>>> getReviewsForTrip(String tripId) {
     return _firestore
@@ -115,6 +123,32 @@ class ReviewService {
         .limit(1)
         .get();
     return snapshot.docs.isNotEmpty;
+  }
+
+  Future<void> recalculateAndStoreUserRating(String userId) async {
+    final reviewsSnapshot = await _firestore
+        .collection('reviews')
+        .where('toUserId', isEqualTo: userId)
+        .get();
+
+    if (reviewsSnapshot.docs.isEmpty) {
+      await _firestore.collection('users').doc(userId).update({
+        'rating': 0.0,
+        'reviewCount': 0,
+      });
+      return;
+    }
+
+    final reviews = reviewsSnapshot.docs
+        .map((doc) => Review.fromMap(doc.data(), doc.id))
+        .toList();
+    final sum = reviews.fold<double>(0, (acc, review) => acc + review.rating);
+    final average = sum / reviews.length;
+
+    await _firestore.collection('users').doc(userId).update({
+      'rating': average,
+      'reviewCount': reviews.length,
+    });
   }
 }
 

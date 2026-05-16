@@ -52,10 +52,11 @@ class _DepartureSearchScreenState extends State<DepartureSearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF6FCFA),
       appBar: AppBar(
         title: const Text("Точка відправлення"),
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF4FBF9),
+        surfaceTintColor: const Color(0xFFF4FBF9),
         foregroundColor: Colors.black,
         elevation: 0,
       ),
@@ -69,7 +70,7 @@ class _DepartureSearchScreenState extends State<DepartureSearchScreen> {
               onChanged: _onChanged,
               decoration: InputDecoration(
                 hintText: "Вулиця, номер будинку або місто...",
-                prefixIcon: const Icon(Icons.location_on, color: Color(0xFF5DD9C1)),
+                prefixIcon: const Icon(Icons.location_on, color: Color(0xFF2F8F7F)),
                 suffixIcon: _isLoading ? const Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2)) : null,
                 filled: true,
                 fillColor: Colors.grey.shade100,

@@ -17,7 +17,7 @@ class _ArrivalSearchScreenState extends State<ArrivalSearchScreen> {
   bool _isLoading = false;
   Timer? _debounce;
 
-  final Color primaryTurquoise = const Color(0xFF5DD9C1);
+  final Color primaryTurquoise = const Color(0xFF2F8F7F);
 
   Future<void> _searchAddress(String query) async {
     if (query.trim().length < 2) {
@@ -55,10 +55,11 @@ class _ArrivalSearchScreenState extends State<ArrivalSearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF6FCFA),
       appBar: AppBar(
         title: const Text("Куди прямуємо?"),
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF4FBF9),
+        surfaceTintColor: const Color(0xFFF4FBF9),
         foregroundColor: Colors.black,
         elevation: 0,
       ),
@@ -100,7 +101,7 @@ class _ArrivalSearchScreenState extends State<ArrivalSearchScreen> {
                   leading: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: primaryTurquoise.withOpacity(0.1),
+                      color: primaryTurquoise.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(Icons.sports_score, color: primaryTurquoise, size: 20),

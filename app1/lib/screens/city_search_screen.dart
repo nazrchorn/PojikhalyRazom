@@ -68,10 +68,11 @@ class _CitySearchScreenState extends State<CitySearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF6FCFA),
       appBar: AppBar(
         title: Text(widget.title),
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF4FBF9),
+        surfaceTintColor: const Color(0xFFF4FBF9),
         foregroundColor: Colors.black,
         elevation: 0,
       ),
@@ -85,11 +86,11 @@ class _CitySearchScreenState extends State<CitySearchScreen> {
               onChanged: _onSearchChanged,
               decoration: InputDecoration(
                 hintText: "Наприклад: Львів чи Lviv",
-                prefixIcon: const Icon(Icons.search, color: Color(0xFF5DD9C1)),
+                prefixIcon: const Icon(Icons.search, color: Color(0xFF2F8F7F)),
                 suffixIcon: _isLoading
                     ? const Padding(
                   padding: EdgeInsets.all(12.0),
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF5DD9C1)),
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2F8F7F)),
                 )
                     : IconButton(
                   icon: const Icon(Icons.clear),
@@ -147,10 +148,10 @@ class _CitySearchScreenState extends State<CitySearchScreen> {
                   leading: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF5DD9C1).withOpacity(0.1),
+                      color: const Color(0xFF2F8F7F).withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.location_on, color: Color(0xFF5DD9C1), size: 20),
+                    child: const Icon(Icons.location_on, color: Color(0xFF2F8F7F), size: 20),
                   ),
                   title: Text(cityName, style: const TextStyle(fontWeight: FontWeight.w600)),
                   subtitle: Text(fullLabel, maxLines: 1, overflow: TextOverflow.ellipsis),

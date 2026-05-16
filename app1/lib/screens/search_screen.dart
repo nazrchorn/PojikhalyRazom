@@ -20,7 +20,7 @@ class _SearchScreenState extends State<SearchScreen> {
   late String _fromCity;
   late String _toCity;
 
-  final Color primaryTurquoise = const Color(0xFF5DD9C1);
+  final Color primaryTurquoise = const Color(0xFF2F8F7F);
 
   @override
   void initState() {
@@ -113,10 +113,11 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF6FCFA),
       appBar: AppBar(
         title: const Text('Пошук поїздок'),
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF4FBF9),
+        surfaceTintColor: const Color(0xFFF4FBF9),
         foregroundColor: Colors.black,
         elevation: 0,
       ),

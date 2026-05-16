@@ -3,11 +3,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'dart:math' show cos, sqrt, asin;
 import '../models/trip.dart';
+import '../models/booking_request.dart';
 import '../models/user.dart' as app_user;
 import '../main.dart';
 import '../services/trip_service.dart';
 import '../services/user_service.dart';
 import '../services/review_service.dart';
+import '../services/booking_service.dart';
+import '../services/chat_service.dart';
 import 'public_profile_screen.dart';
 import 'trip_details_map_screen.dart';
 import 'messanger_screen.dart';
@@ -28,7 +31,7 @@ class TripDetailScreen extends StatelessWidget {
   });
 
   // Палітра кольорів
-  final Color primaryTurquoise = const Color(0xFF5DD9C1);
+  final Color primaryTurquoise = const Color(0xFF2F8F7F);
   final Color mapIconColor = const Color(0xFF4DB6AC);
   final Color priceTextColor = const Color(0xFF26A69A);
   final Color backgroundDeep = const Color(0xFFF2F5F8);
@@ -37,6 +40,8 @@ class TripDetailScreen extends StatelessWidget {
   final TripService _tripService = TripService();
   final UserService _userService = UserService();
   final ReviewService _reviewService = ReviewService();
+  final BookingService _bookingService = BookingService();
+  final ChatService _chatService = ChatService();
 
   // Розрахунок часу прибуття по координатах (виправлено назви полів на lat/lng)
   String _estimateArrivalTime(Trip trip) {
@@ -221,7 +226,8 @@ class TripDetailScreen extends StatelessWidget {
           appBar: AppBar(
             title: const Text("Деталі поїздки"),
             centerTitle: true,
-            backgroundColor: Colors.white,
+            backgroundColor: const Color(0xFFF4FBF9),
+            surfaceTintColor: const Color(0xFFF4FBF9),
             elevation: 0,
             foregroundColor: Colors.black87,
           ),
@@ -341,7 +347,11 @@ class TripDetailScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              _buildBottomPanel(context, liveSeats),
+              _buildBottomPanel(
+                context,
+                liveSeats,
+                passengerIds.map((e) => e.toString()).toList(),
+              ),
             ],
           ),
         );
@@ -349,11 +359,14 @@ class TripDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBottomPanel(BuildContext context, int liveSeats) {
+  Widget _buildBottomPanel(BuildContext context, int liveSeats, List<String> livePassengerIds) {
     final String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
     final bool isDriver = trip.driverId == currentUserId;
-    final bool isPassenger = trip.passengers.contains(currentUserId);
-    final bool isTripCompleted = trip.status == 'completed' || trip.isCompletedByTime(DateTime.now());
+    final bool isPassenger = livePassengerIds.contains(currentUserId);
+    final DateTime now = DateTime.now();
+    final bool isTripCompleted = trip.status == 'completed' || trip.isCompletedByTime(now);
+    final bool isTripInProgress = trip.status == 'in_progress' || trip.isInProgressByTime(now);
+    final bool canModifyTrip = trip.status == 'active' && !trip.hasStartedByTime(now);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 30),
@@ -426,35 +439,118 @@ class TripDetailScreen extends StatelessWidget {
               );
             },
           ),
-          if (showBookingButton && liveSeats > 0 && trip.status == 'active') ...[
-            const SizedBox(height: 15),
-            ElevatedButton(
-              onPressed: () => _handleBooking(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primaryTurquoise,
-                minimumSize: const Size.fromHeight(55),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                elevation: 0,
-              ),
-              child: const Text("Забронювати", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-            ),
-          ],
-          // Кнопка скасування для пасажира
-          if (isPassenger && !isTripCompleted && trip.status == 'active') ...[
+          if (isTripInProgress) ...[
             const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: () => _cancelBooking(context),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
-                foregroundColor: Colors.red,
-                side: const BorderSide(color: Colors.red),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.orange.shade200),
               ),
-              child: const Text('Скасувати бронювання', style: TextStyle(fontWeight: FontWeight.bold)),
+              child: const Text(
+                'Поїздка вже в процесі',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
             ),
           ],
+
+          if (isDriver && !isTripCompleted && canModifyTrip) ...[
+            const SizedBox(height: 12),
+            _buildDriverRequestsPanel(context),
+          ],
+
+          if (!isDriver && showBookingButton && !isTripCompleted && canModifyTrip) ...[
+            const SizedBox(height: 12),
+            StreamBuilder<BookingRequest?>(
+              stream: _bookingService.watchPassengerLatestRequest(trip.id, currentUserId),
+              builder: (context, snapshot) {
+                final request = snapshot.data;
+                final bool hasPending = request?.status == 'pending';
+                final bool hasConfirmed = isPassenger || request?.status == 'confirmed';
+
+                if (hasPending) {
+                  return Column(
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade50,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colors.amber.shade300),
+                        ),
+                        child: const Text(
+                          'Запит на бронювання надiслано. Очiкуйте пiдтвердження водiя.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      OutlinedButton(
+                        onPressed: () => _cancelBooking(context),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(color: Colors.red),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        child: const Text('Скасувати запит', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  );
+                }
+
+                if (hasConfirmed) {
+                  return OutlinedButton(
+                    onPressed: () => _cancelBooking(context),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: const Text('Скасувати бронювання', style: TextStyle(fontWeight: FontWeight.bold)),
+                  );
+                }
+
+                if (liveSeats <= 0) {
+                  return Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Text(
+                      'Немає вiльних мiсць для запиту',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.black54),
+                    ),
+                  );
+                }
+
+                return ElevatedButton(
+                  onPressed: () => _sendBookingRequest(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryTurquoise,
+                    minimumSize: const Size.fromHeight(55),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    'Надiслати запит на бронювання',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                );
+              },
+            ),
+          ],
+
           // Кнопка скасування для водія
-          if (isDriver && !isTripCompleted && trip.status == 'active') ...[
+          if (isDriver && !isTripCompleted && canModifyTrip) ...[
             const SizedBox(height: 12),
             OutlinedButton(
               onPressed: () => _cancelTrip(context),
@@ -599,19 +695,157 @@ class TripDetailScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _handleBooking(BuildContext context) async {
+  Widget _buildDriverRequestsPanel(BuildContext context) {
+    return StreamBuilder<List<BookingRequest>>(
+      stream: _bookingService.watchTripPendingRequests(trip.id),
+      builder: (context, snapshot) {
+        final requests = snapshot.data ?? const <BookingRequest>[];
+        if (requests.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF8E1),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.amber.shade300),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Запити на бронювання',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              ...requests.map((request) {
+                return FutureBuilder<Map<String, dynamic>?>(
+                  future: _userService.loadUserData(request.passengerId),
+                  builder: (context, userSnap) {
+                    final userData = userSnap.data ?? const <String, dynamic>{};
+                    final passengerName = userData['name'] as String? ?? 'Пасажир';
+                    final routeText = (request.fromCity != null && request.toCity != null)
+                        ? '${request.fromCity} -> ${request.toCity}'
+                        : 'Маршрут поїздки';
+
+                    return Container(
+                      margin: const EdgeInsets.only(top: 8),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(passengerName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 4),
+                          Text(routeText, style: const TextStyle(color: Colors.black54, fontSize: 13)),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton(
+                                  onPressed: () => _confirmRequest(context, request),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: primaryTurquoise,
+                                    minimumSize: const Size.fromHeight(40),
+                                  ),
+                                  child: const Text('Пiдтвердити', style: TextStyle(color: Colors.white)),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed: () => _rejectRequest(context, request),
+                                  style: OutlinedButton.styleFrom(
+                                    minimumSize: const Size.fromHeight(40),
+                                    foregroundColor: Colors.red,
+                                    side: const BorderSide(color: Colors.red),
+                                  ),
+                                  child: const Text('Вiдхилити'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _sendBookingRequest(BuildContext context) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
+
+    final passengerData = await _userService.loadUserData(user.uid);
+    final passengerName = passengerData?['name'] as String? ?? 'Пасажир';
+    if (!context.mounted) return;
+
     try {
       showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
-      await _tripService.bookSeat(
+      await _bookingService.createBookingRequest(
         tripId: trip.id,
-        userId: user.uid,
+        driverId: trip.driverId,
+        passengerId: user.uid,
+        passengerName: passengerName,
         fromCity: bookingFromCity,
         toCity: bookingToCity,
       );
-      if (context.mounted) Navigator.pop(context);
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Запит на бронювання надiслано водiю')),
+        );
+      }
     } catch (e) {
+      if (context.mounted) Navigator.pop(context);
+    }
+  }
+
+  Future<void> _confirmRequest(BuildContext context, BookingRequest request) async {
+    final driverData = await _userService.loadUserData(request.driverId);
+    final driverName = driverData?['name'] as String? ?? 'Водiй';
+    if (!context.mounted) return;
+
+    try {
+      showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+      await _bookingService.confirmBookingRequest(requestId: request.id, driverName: driverName);
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Запит пiдтверджено')),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) Navigator.pop(context);
+    }
+  }
+
+  Future<void> _rejectRequest(BuildContext context, BookingRequest request) async {
+    final driverData = await _userService.loadUserData(request.driverId);
+    final driverName = driverData?['name'] as String? ?? 'Водiй';
+    if (!context.mounted) return;
+
+    try {
+      showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
+      await _bookingService.rejectBookingRequest(requestId: request.id, driverName: driverName);
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Запит вiдхилено')),
+        );
+      }
+    } catch (_) {
       if (context.mounted) Navigator.pop(context);
     }
   }
@@ -643,7 +877,7 @@ class TripDetailScreen extends StatelessWidget {
 
     try {
       showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
-      await _tripService.cancelBooking(tripId: trip.id, userId: user.uid);
+      await _bookingService.cancelLatestByPassenger(tripId: trip.id, passengerId: user.uid);
       if (context.mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -683,6 +917,16 @@ class TripDetailScreen extends StatelessWidget {
         tripId: trip.id,
         cancelledBy: FirebaseAuth.instance.currentUser?.uid ?? '',
       );
+      final driverData = await _userService.loadUserData(trip.driverId);
+      final driverName = driverData?['name'] as String? ?? 'Водiй';
+      for (final passengerId in trip.passengers) {
+        await _chatService.sendSystemMessage(
+          receiverId: passengerId,
+          tripId: trip.id,
+          type: 'trip_cancelled',
+          text: '$driverName скасував поїздку. Ви можете знайти iнший варiант у пошуку.',
+        );
+      }
       if (context.mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(

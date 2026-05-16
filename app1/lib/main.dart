@@ -7,6 +7,7 @@ import 'screens/login_screen.dart';
 import 'screens/registration_screen.dart';
 import 'screens/route_selection_screen.dart';
 import 'services/notification_service.dart';
+import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -27,16 +28,13 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Pojikhaly Razom',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primaryColor: const Color(0xFF5DD9C1),
-        scaffoldBackgroundColor: Colors.white,
-      ),
+      theme: AppTheme.light,
       // Стрім слухає: залогінений юзер чи ні
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(body: Center(child: CircularProgressIndicator(color: Color(0xFF5DD9C1))));
+            return const Scaffold(body: Center(child: CircularProgressIndicator(color: Color(0xFF2F8F7F))));
           }
           if (snapshot.hasData) {
             return const MainScreen();

@@ -99,10 +99,10 @@ class _MainScreenState extends State<MainScreen> {
           final unreadCount = snapshot.data ?? 0;
 
           return BottomNavigationBar(
-            backgroundColor: Colors.white,
+            backgroundColor: const Color(0xFFF4FBF9),
             currentIndex: _selectedIndex,
             onTap: _onItemTapped,
-            selectedItemColor: const Color(0xFF5DD9C1),
+            selectedItemColor: const Color(0xFF1F6F66),
             unselectedItemColor: Colors.grey,
             type: BottomNavigationBarType.fixed,
             items: [

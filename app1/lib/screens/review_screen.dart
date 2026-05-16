@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/review_service.dart';
 import '../services/user_service.dart';
+import '../services/chat_service.dart';
 
 class ReviewScreen extends StatefulWidget {
   final String tripId;
@@ -30,8 +31,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
   bool isLoading = false;
   final ReviewService _reviewService = ReviewService();
   final UserService _userService = UserService();
+  final ChatService _chatService = ChatService();
 
-  final Color primaryTurquoise = const Color(0xFF5DD9C1);
+  final Color primaryTurquoise = const Color(0xFF2F8F7F);
   final Color bgTurquoiseLight = const Color(0xFFE8F8F5);
 
   @override
@@ -57,6 +59,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
     setState(() => isLoading = true);
 
     try {
+      final fromUserData = await _userService.loadUserData(widget.fromUserId);
       await _reviewService.submitReview(
         tripId: widget.tripId,
         fromUserId: widget.fromUserId,
@@ -66,7 +69,15 @@ class _ReviewScreenState extends State<ReviewScreen> {
         role: widget.role,
       );
 
-      await _updateUserRating();
+      await _reviewService.recalculateAndStoreUserRating(widget.toUserId);
+
+      final fromUserName = fromUserData?['name'] as String? ?? 'Користувач';
+      await _chatService.sendSystemMessage(
+        receiverId: widget.toUserId,
+        tripId: widget.tripId,
+        type: 'review_received',
+        text: '$fromUserName залишив(ла) вам відгук після поїздки: $rating/5 ⭐',
+      );
 
       if (mounted) {
         Navigator.pop(context, true);
@@ -85,22 +96,16 @@ class _ReviewScreenState extends State<ReviewScreen> {
     }
   }
 
-  Future<void> _updateUserRating() async {
-    try {
-      await _userService.updateUserRating(userId: widget.toUserId, newRating: rating);
-    } catch (e) {
-      debugPrint('Помилка оновлення рейтингу: $e');
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFBFBFB),
+      backgroundColor: const Color(0xFFF6FCFA),
       appBar: AppBar(
         title: const Text('Написати відгук'),
         centerTitle: true,
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF4FBF9),
+        surfaceTintColor: const Color(0xFFF4FBF9),
         elevation: 0,
         foregroundColor: Colors.black87,
       ),

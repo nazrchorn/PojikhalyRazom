@@ -13,7 +13,7 @@ class TripsListScreen extends StatelessWidget {
     required this.toCity,
   });
 
-  final Color primaryTurquoise = const Color(0xFF5DD9C1);
+  final Color primaryTurquoise = const Color(0xFF2F8F7F);
   final TripService _tripService = TripService();
 
   // Допоміжна функція для очищення назви міста (Львів, Львівська обл -> Львів)
@@ -27,13 +27,14 @@ class TripsListScreen extends StatelessWidget {
     final String cleanTo = _cleanCityName(toCity);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBFBFB),
+      backgroundColor: const Color(0xFFF6FCFA),
       appBar: AppBar(
         title: Text(
           "${fromCity.split(',').first} → ${toCity.split(',').first}",
           style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFFF4FBF9),
+        surfaceTintColor: const Color(0xFFF4FBF9),
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black87),
       ),
@@ -44,7 +45,7 @@ class TripsListScreen extends StatelessWidget {
             return const Center(child: Text("Помилка завантаження даних"));
           }
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: Color(0xFF5DD9C1)));
+            return const Center(child: CircularProgressIndicator(color: Color(0xFF2F8F7F)));
           }
 
           if (!snapshot.hasData || snapshot.data!.isEmpty) {

@@ -64,6 +64,20 @@ class TripService {
     return Trip.fromMap(doc.data() as Map<String, dynamic>, doc.id);
   }
 
+  Future<int> getCompletedTripsCountForDriver(String driverId) async {
+    final snapshot = await tripsCollection
+        .where('driverId', isEqualTo: driverId)
+        .get();
+
+    final now = DateTime.now();
+    return snapshot.docs
+        .map((doc) => Trip.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+        .where((trip) =>
+            trip.status != 'cancelled' &&
+            (trip.status == 'completed' || trip.isCompletedByTime(now)))
+        .length;
+  }
+
   Future<void> bookSeat({
     required String tripId,
     required String userId,

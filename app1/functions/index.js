@@ -8,6 +8,8 @@ admin.initializeApp();
 
 const db = admin.firestore();
 const messaging = admin.messaging();
+const SYSTEM_CHAT_USER_ID = 'poikhali_system';
+const SYSTEM_CHAT_NAME = 'Поїхали Разом';
 
 function trimText(text, maxLen = 120) {
   if (!text || typeof text !== 'string') return '';
@@ -91,6 +93,42 @@ function resolveEstimatedMinutes(tripData) {
   return {minutes: estimated, backfilled: estimated > 0};
 }
 
+async function sendSystemTripMessage({tripId, receiverId, text, type}) {
+  if (!receiverId) return;
+  await db.collection('messages').add({
+    tripId,
+    senderId: SYSTEM_CHAT_USER_ID,
+    receiverId,
+    text,
+    type,
+    sentAt: admin.firestore.FieldValue.serverTimestamp(),
+    isRead: false,
+    isSystem: true
+  });
+}
+
+async function notifyTripCompletion(tripId, tripData) {
+  const passengerIds = Array.isArray(tripData.passengers)
+    ? tripData.passengers.map((id) => String(id)).filter(Boolean)
+    : [];
+  const recipients = [String(tripData.driverId || ''), ...passengerIds]
+    .map((id) => id.trim())
+    .filter(Boolean);
+  const uniqueRecipients = [...new Set(recipients)];
+
+  for (const receiverId of uniqueRecipients) {
+    const isDriver = receiverId === String(tripData.driverId || '');
+    await sendSystemTripMessage({
+      tripId,
+      receiverId,
+      type: 'trip_completed',
+      text: isDriver
+        ? 'Поїздка завершена. Ви можете переглянути відгуки від пасажирів.'
+        : 'Поїздка завершена. Ви можете залишити відгук про водія.'
+    });
+  }
+}
+
 exports.onNewMessagePush = onDocumentCreated(
   {
     document: 'messages/{messageId}',
@@ -119,7 +157,9 @@ exports.onNewMessagePush = onDocumentCreated(
     }
 
     const [senderSnap, receiverSnap] = await Promise.all([
-      db.collection('users').doc(senderId).get(),
+      senderId === SYSTEM_CHAT_USER_ID
+        ? Promise.resolve(null)
+        : db.collection('users').doc(senderId).get(),
       db.collection('users').doc(receiverId).get()
     ]);
 
@@ -136,9 +176,9 @@ exports.onNewMessagePush = onDocumentCreated(
       return;
     }
 
-    const senderName = senderSnap.exists
-      ? (senderSnap.data()?.name || 'Нове повідомлення')
-      : 'Нове повідомлення';
+    const senderName = senderId === SYSTEM_CHAT_USER_ID
+      ? SYSTEM_CHAT_NAME
+      : (senderSnap?.exists ? (senderSnap.data()?.name || 'Нове повідомлення') : 'Нове повідомлення');
 
     const payload = {
       token,
@@ -246,7 +286,7 @@ exports.completeFinishedTrips = onSchedule(
   },
   async () => {
     const now = new Date();
-    const tripsSnap = await db.collection('trips').where('status', '==', 'active').get();
+    const tripsSnap = await db.collection('trips').where('status', 'in', ['active', 'in_progress']).get();
 
     if (tripsSnap.empty) {
       logger.info('No active trips to process.');
@@ -256,16 +296,6 @@ exports.completeFinishedTrips = onSchedule(
     let updated = 0;
     let backfilled = 0;
     let skipped = 0;
-    let batch = db.batch();
-    let pendingBatchUpdates = 0;
-
-    async function flushBatchIfNeeded(force = false) {
-      if (pendingBatchUpdates === 0) return;
-      if (!force && pendingBatchUpdates < 450) return;
-      await batch.commit();
-      batch = db.batch();
-      pendingBatchUpdates = 0;
-    }
 
     for (const doc of tripsSnap.docs) {
       const data = doc.data() || {};
@@ -282,24 +312,42 @@ exports.completeFinishedTrips = onSchedule(
       }
       const plannedArrival = new Date(departureTime.getTime() + minutes * 60 * 1000);
       const payload = {};
+      const currentStatus = data.status || 'active';
 
       if (shouldBackfill) {
         payload.estimatedDurationMinutes = minutes;
       }
 
+      if (plannedArrival > now && (currentStatus === 'active' || currentStatus === 'in_progress')) {
+        if (now >= departureTime && currentStatus !== 'in_progress') {
+          payload.status = 'in_progress';
+          payload.startedAt = admin.firestore.FieldValue.serverTimestamp();
+        }
+      }
+
       if (plannedArrival <= now) {
+        if (!data.startedAt) {
+          payload.startedAt = admin.firestore.FieldValue.serverTimestamp();
+        }
         payload.status = 'completed';
         payload.completedAt = admin.firestore.FieldValue.serverTimestamp();
       }
 
       const hasPayload = Object.keys(payload).length > 0;
       if (hasPayload) {
-        batch.update(doc.ref, payload);
-        pendingBatchUpdates += 1;
-        await flushBatchIfNeeded();
-
+        await doc.ref.update(payload);
         if (payload.status === 'completed') {
           updated += 1;
+          const driverId = String(data.driverId || '').trim();
+          if (driverId) {
+            await db.collection('users').doc(driverId).set(
+              {
+                tripsCompleted: admin.firestore.FieldValue.increment(1)
+              },
+              {merge: true}
+            );
+          }
+          await notifyTripCompletion(doc.id, data);
         }
         if (Object.prototype.hasOwnProperty.call(payload, 'estimatedDurationMinutes')) {
           backfilled += 1;
@@ -309,7 +357,6 @@ exports.completeFinishedTrips = onSchedule(
       }
     }
 
-    await flushBatchIfNeeded(true);
 
     logger.info('Trip completion cron finished.', {
       processed: tripsSnap.size,

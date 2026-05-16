@@ -13,13 +13,14 @@ class Trip {
   final DateTime createdAt;
   final List<Location> stops;
   final List<String> routeCities;
-  final String status; // 'active', 'completed', 'cancelled'
+  final String status; // 'active', 'in_progress', 'completed', 'cancelled'
   final bool allowChildren;
   final bool allowPets;
   final bool womenOnly;
   final String? cancelledBy; // хто скасував поїздку (driverId або passengerId)
   final String? cancellationReason; // причина скасування
   final DateTime? cancelledAt; // коли скасована
+  final DateTime? startedAt; // коли поїздка фактично стартувала
   final DateTime? completedAt; // коли завершена
   final int? estimatedDurationMinutes; // запланована тривалість маршруту
 
@@ -42,9 +43,18 @@ class Trip {
     this.cancelledBy,
     this.cancellationReason,
     this.cancelledAt,
+    this.startedAt,
     this.completedAt,
     this.estimatedDurationMinutes,
   });
+
+  bool hasStartedByTime(DateTime now) {
+    return !now.isBefore(departureTime);
+  }
+
+  bool isInProgressByTime(DateTime now) {
+    return hasStartedByTime(now) && !isCompletedByTime(now) && status != 'cancelled';
+  }
 
   DateTime getPlannedArrivalTime() {
     final minutes = estimatedDurationMinutes ?? 0;
@@ -77,6 +87,7 @@ class Trip {
       'cancelledBy': cancelledBy,
       'cancellationReason': cancellationReason,
       'cancelledAt': cancelledAt?.toIso8601String(),
+      'startedAt': startedAt?.toIso8601String(),
       'completedAt': completedAt?.toIso8601String(),
       'estimatedDurationMinutes': estimatedDurationMinutes,
     };
@@ -114,6 +125,7 @@ class Trip {
       cancelledBy: map['cancelledBy'],
       cancellationReason: map['cancellationReason'],
       cancelledAt: map['cancelledAt'] != null ? parseDate(map['cancelledAt']) : null,
+      startedAt: map['startedAt'] != null ? parseDate(map['startedAt']) : null,
       completedAt: map['completedAt'] != null ? parseDate(map['completedAt']) : null,
       estimatedDurationMinutes: (map['estimatedDurationMinutes'] as num?)?.toInt(),
     );

@@ -12,19 +12,23 @@ class ReviewsListScreen extends StatelessWidget {
     required this.userName,
   });
 
-  final Color primaryTurquoise = const Color(0xFF5DD9C1);
+  final Color primaryTurquoise = const Color(0xFF2F8F7F);
   final Color bgTurquoiseLight = const Color(0xFFE8F8F5);
+  final Color accentTurquoiseDark = const Color(0xFF2F8F7F);
+  final Color mintBackground = const Color(0xFFF6FCFA);
+  final Color mintAppBar = const Color(0xFFF4FBF9);
 
   @override
   Widget build(BuildContext context) {
     final reviewService = ReviewService();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBFBFB),
+      backgroundColor: mintBackground,
       appBar: AppBar(
         title: const Text('Відгуки'),
         centerTitle: true,
-        backgroundColor: Colors.white,
+        backgroundColor: mintAppBar,
+        surfaceTintColor: mintAppBar,
         elevation: 0,
         foregroundColor: Colors.black87,
       ),
@@ -33,6 +37,32 @@ class ReviewsListScreen extends StatelessWidget {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline_rounded, size: 64, color: Colors.red.shade300),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Не вдалося завантажити відгуки',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Спробуйте відкрити екран ще раз.',
+                      style: TextStyle(color: Colors.grey.shade600),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            );
           }
 
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -53,7 +83,8 @@ class ReviewsListScreen extends StatelessWidget {
 
           final reviews = snapshot.data!.docs
               .map((doc) => Review.fromMap(doc.data() as Map<String, dynamic>, doc.id))
-              .toList();
+              .toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
           // Розраховуємо середню оцінку
           final averageRating = reviews.isEmpty
@@ -73,7 +104,7 @@ class ReviewsListScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
+                        color: Colors.black.withValues(alpha: 0.05),
                         blurRadius: 10,
                       )
                     ],
@@ -92,7 +123,7 @@ class ReviewsListScreen extends StatelessWidget {
                                   index < averageRating.round()
                                       ? Icons.star
                                       : Icons.star_border,
-                                  color: Colors.amber,
+                                  color: accentTurquoiseDark,
                                   size: 20,
                                 ),
                               ),
@@ -147,7 +178,7 @@ class ReviewsListScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 8,
             offset: const Offset(0, 2),
           )
@@ -165,7 +196,7 @@ class ReviewsListScreen extends StatelessWidget {
                   5,
                   (index) => Icon(
                     index < review.rating ? Icons.star : Icons.star_border,
-                    color: Colors.amber,
+                    color: accentTurquoiseDark,
                     size: 18,
                   ),
                 ),
@@ -205,7 +236,7 @@ class ReviewsListScreen extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: primaryTurquoise,
+                  color: accentTurquoiseDark,
                 ),
               ),
             ),

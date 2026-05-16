@@ -25,7 +25,7 @@ class AddCarDialog extends StatefulWidget {
 }
 
 class _AddCarDialogState extends State<AddCarDialog> {
-  final Color primaryTurquoise = const Color(0xFF5DD9C1);
+  final Color primaryTurquoise = const Color(0xFF2F8F7F);
   final Color bgTurquoiseLight = const Color(0xFFE8F8F5);
 
   int currentStep = 0;
