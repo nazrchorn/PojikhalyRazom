@@ -15,6 +15,38 @@ class BookingService {
   CollectionReference<Map<String, dynamic>> get _requests =>
       _firestore.collection('booking_requests');
 
+  Future<void> _sendSystemMessageSafe({
+    required String receiverId,
+    required String text,
+    required String tripId,
+    required String type,
+    Map<String, dynamic>? metadata,
+  }) async {
+    try {
+      await _chatService.sendSystemMessage(
+        receiverId: receiverId,
+        text: text,
+        tripId: tripId,
+        type: type,
+        metadata: metadata,
+      );
+    } catch (_) {
+      // Fallback for projects where message rules allow only a fixed field set.
+      if (metadata != null && metadata.isNotEmpty) {
+        try {
+          await _chatService.sendSystemMessage(
+            receiverId: receiverId,
+            text: text,
+            tripId: tripId,
+            type: type,
+          );
+        } catch (_) {
+          // Keep booking flow successful even if notification fails.
+        }
+      }
+    }
+  }
+
   Stream<List<BookingRequest>> watchTripPendingRequests(String tripId) {
     return _requests
         .where('tripId', isEqualTo: tripId)
@@ -91,7 +123,7 @@ class BookingService {
         : '';
 
     await Future.wait([
-      _chatService.sendSystemMessage(
+      _sendSystemMessageSafe(
         receiverId: driverId,
         text: 'Новий запит на бронювання в поїздці вiд $passengerName$routeText.',
         tripId: tripId,
@@ -105,7 +137,7 @@ class BookingService {
           'requestedPrice': requestedPrice,
         },
       ),
-      _chatService.sendSystemMessage(
+      _sendSystemMessageSafe(
         receiverId: passengerId,
         text: 'Ваш запит на бронювання надiслано водiю. Очiкуйте пiдтвердження.',
         tripId: tripId,

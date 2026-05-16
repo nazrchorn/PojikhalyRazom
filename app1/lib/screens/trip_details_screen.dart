@@ -908,7 +908,12 @@ class TripDetailScreen extends StatelessWidget {
         );
       }
     } catch (e) {
-      if (context.mounted) Navigator.pop(context);
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Не вдалося надiслати запит: $e')),
+        );
+      }
     }
   }
 
