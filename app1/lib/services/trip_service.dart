@@ -43,9 +43,27 @@ class TripService {
         ))
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs
+          final now = DateTime.now();
+          final trips = snapshot.docs
               .map((doc) => Trip.fromMap(doc.data() as Map<String, dynamic>, doc.id))
               .toList();
+
+          // Keep persisted status in sync when planned arrival time has passed.
+          for (final trip in trips) {
+            if (trip.status == 'cancelled' || trip.status == 'completed') {
+              continue;
+            }
+            if (!trip.isCompletedByTime(now)) {
+              continue;
+            }
+
+            _firestore.collection('trips').doc(trip.id).update({
+              'status': 'completed',
+              'completedAt': FieldValue.serverTimestamp(),
+            });
+          }
+
+          return trips;
         });
   }
 

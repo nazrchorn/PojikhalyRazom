@@ -90,12 +90,39 @@ class TripDetailScreen extends StatelessWidget {
     );
   }
 
-  List<String> _buildRouteCities(Trip sourceTrip) {
-    return <String>[
+  int _findCityIndex(List<String> orderedCities, String? city) {
+    if (city == null || city.trim().isEmpty) return -1;
+    final normalized = _normalizeCity(city);
+    for (int i = 0; i < orderedCities.length; i++) {
+      if (_normalizeCity(orderedCities[i]) == normalized) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  List<String> _buildRouteCities(Trip sourceTrip, Map<String, dynamic>? liveData) {
+    final orderedCities = <String>[
       sourceTrip.origin.city,
       ...sourceTrip.stops.map((s) => s.city),
       sourceTrip.destination.city,
     ];
+
+    final includedIndexes = <int>{0, orderedCities.length - 1};
+    final segmentsRaw = liveData?['passengerSegments'];
+    if (segmentsRaw is Map) {
+      for (final value in segmentsRaw.values) {
+        if (value is! Map) continue;
+        final segment = Map<String, dynamic>.from(value);
+        final fromIdx = _findCityIndex(orderedCities, segment['fromCity'] as String?);
+        final toIdx = _findCityIndex(orderedCities, segment['toCity'] as String?);
+        if (fromIdx >= 0) includedIndexes.add(fromIdx);
+        if (toIdx >= 0) includedIndexes.add(toIdx);
+      }
+    }
+
+    final sorted = includedIndexes.toList()..sort();
+    return sorted.map((index) => orderedCities[index]).toList();
   }
 
   // ОНОВЛЕНИЙ ФІЛЬТР: Якщо isDisabled = true, то колір сірий
@@ -156,11 +183,11 @@ class TripDetailScreen extends StatelessWidget {
     bool isFirst = false,
     bool isHighlighted = false,
   }) {
-    final Color markerColor = isHighlighted ? Colors.orange : primaryTurquoise;
+    final Color markerColor = primaryTurquoise;
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12.0),
+        padding: const EdgeInsets.symmetric(vertical: 5.0),
         child: Row(
           children: [
             SizedBox(width: 50, child: Text(time, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.blueGrey))),
@@ -168,14 +195,14 @@ class TripDetailScreen extends StatelessWidget {
             Column(
               children: [
                 Container(
-                  width: 14, height: 14,
+                  width: isHighlighted ? 16 : 14, height: isHighlighted ? 16 : 14,
                   decoration: BoxDecoration(
                     color: isFirst || isLast || isHighlighted ? markerColor : Colors.white,
                     border: Border.all(color: markerColor, width: 3),
                     shape: BoxShape.circle,
                   ),
                 ),
-                if (!isLast) Container(width: 2, height: 40, color: markerColor.withValues(alpha: 0.2)),
+                if (!isLast) Container(width: 2, height: 30, color: markerColor.withValues(alpha: 0.28)),
               ],
             ),
             const SizedBox(width: 18),
@@ -204,8 +231,8 @@ class TripDetailScreen extends StatelessWidget {
         List<dynamic> passengerIds = [];
         final liveData = snapshot.data;
         final String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
-        String? currentSegmentFrom = bookingFromCity;
-        String? currentSegmentTo = bookingToCity;
+        String? currentSegmentFrom;
+        String? currentSegmentTo;
         if (snapshot.hasData && liveData != null) {
           liveSeats = liveData['availableSeats'] ?? trip.availableSeats;
           passengerIds = List<dynamic>.from(liveData['passengers'] ?? []);
@@ -217,7 +244,7 @@ class TripDetailScreen extends StatelessWidget {
           }
         }
 
-        final routeCities = _buildRouteCities(trip);
+        final routeCities = _buildRouteCities(trip, liveData);
         final DateTime arrivalTime = _getPlannedArrival(trip);
         final int totalMinutes = arrivalTime.difference(trip.departureTime).inMinutes;
 
@@ -277,7 +304,7 @@ class TripDetailScreen extends StatelessWidget {
                               isFirst: index == 0,
                               isLast: index == routeCities.length - 1,
                               isHighlighted: highlighted,
-                              onTap: () => _openMap(context, currentSegmentFrom, currentSegmentTo),
+                              onTap: () => _openMap(context, routeCities, currentSegmentFrom, currentSegmentTo),
                             );
                           }),
                         ),
@@ -681,13 +708,19 @@ class TripDetailScreen extends StatelessWidget {
     );
   }
 
-  void _openMap(BuildContext context, String? highlightedFromCity, String? highlightedToCity) {
+  void _openMap(
+    BuildContext context,
+    List<String> visibleRouteCities,
+    String? highlightedFromCity,
+    String? highlightedToCity,
+  ) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => TripDetailsMapScreen(
           trip: trip,
           apiKey: MyApp.orsKey,
+          visibleRouteCities: visibleRouteCities,
           highlightedFromCity: highlightedFromCity,
           highlightedToCity: highlightedToCity,
         ),

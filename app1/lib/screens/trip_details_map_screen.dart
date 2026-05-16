@@ -7,6 +7,7 @@ import '../services/route_service.dart';
 class TripDetailsMapScreen extends StatefulWidget {
   final Trip trip;
   final String apiKey;
+  final List<String> visibleRouteCities;
   final String? highlightedFromCity;
   final String? highlightedToCity;
 
@@ -14,6 +15,7 @@ class TripDetailsMapScreen extends StatefulWidget {
     super.key,
     required this.trip,
     required this.apiKey,
+    required this.visibleRouteCities,
     this.highlightedFromCity,
     this.highlightedToCity,
   });
@@ -32,16 +34,17 @@ class _TripDetailsMapScreenState extends State<TripDetailsMapScreen> {
 
   String _normalizeCity(String city) => city.split(',').first.trim().toLowerCase();
 
+  bool _isVisibleRouteCity(String city) {
+    final normalized = _normalizeCity(city);
+    return widget.visibleRouteCities.any((c) => _normalizeCity(c) == normalized);
+  }
+
   LatLng? _resolveCityPoint(String? city) {
     if (city == null || city.trim().isEmpty) {
       return null;
     }
     final normalized = _normalizeCity(city);
-    final candidates = [
-      widget.trip.origin,
-      ...widget.trip.stops,
-      widget.trip.destination,
-    ];
+    final candidates = [widget.trip.origin, ...widget.trip.stops, widget.trip.destination];
     for (final point in candidates) {
       if (_normalizeCity(point.city) == normalized) {
         return LatLng(point.lat, point.lng);
@@ -113,6 +116,7 @@ class _TripDetailsMapScreenState extends State<TripDetailsMapScreen> {
     final distanceKm = distance != null ? (distance! / 1000).toStringAsFixed(1) : null;
     final fromPoint = _resolveCityPoint(widget.highlightedFromCity);
     final toPoint = _resolveCityPoint(widget.highlightedToCity);
+    final visibleStops = widget.trip.stops.where((stop) => _isVisibleRouteCity(stop.city)).toList();
 
     return Scaffold(
       appBar: AppBar(title: const Text("Маршрут поїздки")),
@@ -153,7 +157,7 @@ class _TripDetailsMapScreenState extends State<TripDetailsMapScreen> {
                     Polyline(
                       points: segmentPolylinePoints,
                       strokeWidth: 4,
-                      color: Colors.orange,
+                      color: const Color(0xFF009688),
                     ),
                   ],
                 ),
@@ -174,7 +178,7 @@ class _TripDetailsMapScreenState extends State<TripDetailsMapScreen> {
                     child: const Icon(Icons.location_on,
                         color: Colors.red, size: 40),
                   ),
-                  ...widget.trip.stops.map((stop) => Marker(
+                  ...visibleStops.map((stop) => Marker(
                         point: LatLng(stop.lat, stop.lng),
                         width: 34,
                         height: 34,
@@ -192,7 +196,7 @@ class _TripDetailsMapScreenState extends State<TripDetailsMapScreen> {
                       point: toPoint,
                       width: 38,
                       height: 38,
-                      child: const Icon(Icons.flag_circle, color: Colors.orange, size: 30),
+                      child: const Icon(Icons.flag_circle, color: Color(0xFF009688), size: 30),
                     ),
                 ],
               ),

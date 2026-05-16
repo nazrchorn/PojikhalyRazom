@@ -6,6 +6,8 @@ import '../main.dart'; // Щоб взяти ключ MyApp.orsKey
 import '../services/trip_service.dart';
 import '../services/user_service.dart';
 import '../services/review_service.dart';
+import '../services/booking_service.dart';
+import '../models/booking_request.dart';
 import 'departure_search_screen.dart';
 import 'arrival_search_screen.dart';
 import 'route_selection_screen.dart';
@@ -24,6 +26,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
   final TripService _tripService = TripService();
   final UserService _userService = UserService();
   final ReviewService _reviewService = ReviewService();
+  final BookingService _bookingService = BookingService();
   final Set<String> _promptedReviewTrips = <String>{};
   bool _reviewFlowActive = false;
 
@@ -352,57 +355,106 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
           )
         ],
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(
-          backgroundColor: statusColor.withValues(alpha: 0.1),
-          child: Icon(
-            isDriver ? Icons.drive_eta_rounded : Icons.person_pin_circle_rounded,
-            color: statusColor,
-          ),
-        ),
-        title: Text(
-          "${tripObject.origin.city} → ${tripObject.destination.city}",
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "${tripObject.departureTime.day}.${tripObject.departureTime.month} | "
-                "${tripObject.departureTime.hour}:${tripObject.departureTime.minute.toString().padLeft(2, '0')} | "
-                "${tripObject.pricePerSeat.toInt()} ₴",
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            leading: CircleAvatar(
+              backgroundColor: statusColor.withValues(alpha: 0.1),
+              child: Icon(
+                isDriver ? Icons.drive_eta_rounded : Icons.person_pin_circle_rounded,
+                color: statusColor,
               ),
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  statusLabel,
-                  style: TextStyle(
-                    color: statusColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        trailing: const Icon(Icons.chevron_right_rounded, color: Colors.grey),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => TripDetailScreen(trip: tripObject),
             ),
-          );
-        },
+            title: Text(
+              "${tripObject.origin.city} → ${tripObject.destination.city}",
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "${tripObject.departureTime.day}.${tripObject.departureTime.month} | "
+                    "${tripObject.departureTime.hour}:${tripObject.departureTime.minute.toString().padLeft(2, '0')} | "
+                    "${tripObject.pricePerSeat.toInt()} ₴",
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      statusLabel,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            trailing: const Icon(Icons.chevron_right_rounded, color: Colors.grey),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => TripDetailScreen(trip: tripObject),
+                ),
+              );
+            },
+          ),
+          if (isDriver && status == 'active')
+            StreamBuilder<List<BookingRequest>>(
+              stream: _bookingService.watchTripPendingRequests(tripObject.id),
+              builder: (context, snapshot) {
+                final pending = snapshot.data ?? const <BookingRequest>[];
+                if (pending.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+
+                return InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => TripDetailScreen(trip: tripObject),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEAF7F4),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: primaryTurquoise.withValues(alpha: 0.35)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.notifications_active_rounded, color: primaryTurquoise, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Запити на бронювання: ${pending.length}. Натисніть, щоб підтвердити.',
+                            style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                        Icon(Icons.chevron_right_rounded, color: primaryTurquoise),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+        ],
       ),
     );
   }

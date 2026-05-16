@@ -65,7 +65,8 @@ class Trip {
   }
 
   bool isCompletedByTime(DateTime now) {
-    return now.isAfter(getPlannedArrivalTime());
+    final plannedArrival = getPlannedArrivalTime();
+    return !now.isBefore(plannedArrival);
   }
 
   Map<String, dynamic> toMap() {
