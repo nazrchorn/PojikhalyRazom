@@ -26,6 +26,17 @@ class BookingService {
             .toList());
   }
 
+  Stream<List<BookingRequest>> watchDriverPendingRequests(String driverId) {
+    return _requests
+        .where('driverId', isEqualTo: driverId)
+        .where('status', isEqualTo: 'pending')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => BookingRequest.fromMap(doc.id, doc.data()))
+            .toList());
+  }
+
   Stream<BookingRequest?> watchPassengerLatestRequest(String tripId, String passengerId) {
     return _requests
         .where('tripId', isEqualTo: tripId)
@@ -47,6 +58,7 @@ class BookingService {
     required String passengerName,
     String? fromCity,
     String? toCity,
+    double? requestedPrice,
   }) async {
     final activeStatuses = ['pending', 'confirmed'];
     final existing = await _requests
@@ -68,6 +80,7 @@ class BookingService {
       'fromCity': fromCity,
       'toCity': toCity,
       'status': 'pending',
+      'requestedPrice': requestedPrice,
       'createdAt': FieldValue.serverTimestamp(),
       'respondedAt': null,
       'respondedBy': null,
@@ -83,6 +96,14 @@ class BookingService {
         text: 'Новий запит на бронювання в поїздці вiд $passengerName$routeText.',
         tripId: tripId,
         type: 'booking_request_created',
+        metadata: {
+          'bookingRequestId': doc.id,
+          'passengerId': passengerId,
+          'passengerName': passengerName,
+          'fromCity': fromCity,
+          'toCity': toCity,
+          'requestedPrice': requestedPrice,
+        },
       ),
       _chatService.sendSystemMessage(
         receiverId: passengerId,
@@ -115,6 +136,7 @@ class BookingService {
       final passengerId = requestData['passengerId'] as String? ?? '';
       final fromCity = requestData['fromCity'] as String?;
       final toCity = requestData['toCity'] as String?;
+      final requestedPrice = (requestData['requestedPrice'] as num?)?.toDouble();
 
       final tripRef = _firestore.collection('trips').doc(tripId);
       final tripSnap = await tx.get(tripRef);
@@ -137,6 +159,8 @@ class BookingService {
           'passengerSegments.$passengerId.fromCity': fromCity,
         if (toCity != null && toCity.isNotEmpty)
           'passengerSegments.$passengerId.toCity': toCity,
+        if (requestedPrice != null)
+          'passengerSegments.$passengerId.requestedPrice': requestedPrice,
       });
 
       tx.update(requestRef, {

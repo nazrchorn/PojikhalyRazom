@@ -216,6 +216,262 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
     );
   }
 
+  String _normalizeCity(String city) {
+    return city.split(',').first.trim().toLowerCase();
+  }
+
+  int _findCityIndex(List<String> routeCities, String? city) {
+    if (city == null || city.trim().isEmpty) return -1;
+    final normalized = _normalizeCity(city);
+    for (int i = 0; i < routeCities.length; i++) {
+      if (_normalizeCity(routeCities[i]) == normalized) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  double _calculateSegmentPrice(Trip trip, {String? fromCity, String? toCity}) {
+    final routeCities = <String>[trip.origin.city, ...trip.stops.map((s) => s.city), trip.destination.city];
+    if (routeCities.length < 2) return trip.pricePerSeat;
+
+    final fromIdx = _findCityIndex(routeCities, fromCity ?? trip.origin.city);
+    final toIdx = _findCityIndex(routeCities, toCity ?? trip.destination.city);
+    final totalSegments = routeCities.length - 1;
+
+    if (fromIdx < 0 || toIdx <= fromIdx || totalSegments <= 0) {
+      return trip.pricePerSeat;
+    }
+
+    final ratio = ((toIdx - fromIdx) / totalSegments).clamp(0.25, 1.0);
+    return (trip.pricePerSeat * ratio).roundToDouble();
+  }
+
+  ({double price, bool discounted}) _resolveTripCardPrice({
+    required Trip trip,
+    required String currentUserId,
+    required bool isDriver,
+    required Map<String, dynamic>? liveData,
+  }) {
+    if (isDriver) {
+      return (price: trip.pricePerSeat, discounted: false);
+    }
+
+    final rawSegments = liveData?['passengerSegments'];
+    if (rawSegments is Map && rawSegments[currentUserId] is Map) {
+      final segment = Map<String, dynamic>.from(rawSegments[currentUserId] as Map);
+      final fromCity = segment['fromCity'] as String?;
+      final toCity = segment['toCity'] as String?;
+      final segmentPrice = (segment['requestedPrice'] as num?)?.toDouble() ??
+          _calculateSegmentPrice(trip, fromCity: fromCity, toCity: toCity);
+      final discounted = segmentPrice < trip.pricePerSeat;
+      return (price: segmentPrice, discounted: discounted);
+    }
+
+    return (price: trip.pricePerSeat, discounted: false);
+  }
+
+  Future<void> _confirmRequest(BookingRequest request) async {
+    final driverData = await _userService.loadUserData(request.driverId);
+    final driverName = driverData?['name'] as String? ?? 'Водiй';
+    if (!mounted) return;
+
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+      await _bookingService.confirmBookingRequest(requestId: request.id, driverName: driverName);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Запит пiдтверджено')),
+        );
+      }
+    } catch (_) {
+      if (mounted) Navigator.pop(context);
+    }
+  }
+
+  Future<void> _rejectRequest(BookingRequest request) async {
+    final driverData = await _userService.loadUserData(request.driverId);
+    final driverName = driverData?['name'] as String? ?? 'Водiй';
+    if (!mounted) return;
+
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+      await _bookingService.rejectBookingRequest(requestId: request.id, driverName: driverName);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Запит вiдхилено')),
+        );
+      }
+    } catch (_) {
+      if (mounted) Navigator.pop(context);
+    }
+  }
+
+  Future<void> _openDriverRequestsSheet(
+    BuildContext context,
+    String driverId, {
+    String? onlyTripId,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: SizedBox(
+              height: MediaQuery.of(sheetContext).size.height * 0.72,
+              child: StreamBuilder<List<BookingRequest>>(
+                stream: _bookingService.watchDriverPendingRequests(driverId),
+                builder: (context, snapshot) {
+                  final allRequests = snapshot.data ?? const <BookingRequest>[];
+                  final requests = onlyTripId == null
+                      ? allRequests
+                      : allRequests.where((r) => r.tripId == onlyTripId).toList();
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Нові запити',
+                              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEAF7F4),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              '${requests.length}',
+                              style: TextStyle(color: primaryTurquoise, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      if (requests.isEmpty)
+                        const Expanded(
+                          child: Center(
+                            child: Text('Нових запитiв зараз немає'),
+                          ),
+                        )
+                      else
+                        Expanded(
+                          child: ListView.separated(
+                            itemCount: requests.length,
+                            separatorBuilder: (_, index) => const SizedBox(height: 10),
+                            itemBuilder: (context, index) {
+                              final request = requests[index];
+                              return FutureBuilder<List<dynamic>>(
+                                future: Future.wait<dynamic>([
+                                  _userService.loadUserData(request.passengerId),
+                                  _tripService.getTripById(request.tripId),
+                                ]),
+                                builder: (context, dataSnapshot) {
+                                  final userData = dataSnapshot.data != null
+                                      ? (dataSnapshot.data![0] as Map<String, dynamic>? ?? const <String, dynamic>{})
+                                      : const <String, dynamic>{};
+                                  final tripData = dataSnapshot.data != null
+                                      ? dataSnapshot.data![1] as Trip?
+                                      : null;
+                                  final passengerName = userData['name'] as String? ?? 'Пасажир';
+                                  final routeText = (request.fromCity != null && request.toCity != null)
+                                      ? '${request.fromCity} -> ${request.toCity}'
+                                      : '${tripData?.origin.city ?? 'Маршрут'} -> ${tripData?.destination.city ?? ''}';
+                                  final computedPrice = tripData == null
+                                      ? null
+                                      : _calculateSegmentPrice(
+                                          tripData,
+                                          fromCity: request.fromCity,
+                                          toCity: request.toCity,
+                                        );
+                                  final requestedPrice = request.requestedPrice ?? computedPrice;
+
+                                  return Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF8FCFB),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(color: primaryTurquoise.withValues(alpha: 0.25)),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(passengerName, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                        const SizedBox(height: 4),
+                                        Text(routeText, style: const TextStyle(color: Colors.black54)),
+                                        if (requestedPrice != null) ...[
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Цiна для пасажира: ${requestedPrice.toInt()} ₴',
+                                            style: TextStyle(color: primaryTurquoise, fontWeight: FontWeight.w700),
+                                          ),
+                                        ],
+                                        const SizedBox(height: 10),
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: ElevatedButton(
+                                                onPressed: () => _confirmRequest(request),
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: primaryTurquoise,
+                                                  minimumSize: const Size.fromHeight(40),
+                                                ),
+                                                child: const Text('Пiдтвердити', style: TextStyle(color: Colors.white)),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: OutlinedButton(
+                                                onPressed: () => _rejectRequest(request),
+                                                style: OutlinedButton.styleFrom(
+                                                  foregroundColor: Colors.red,
+                                                  side: const BorderSide(color: Colors.red),
+                                                  minimumSize: const Size.fromHeight(40),
+                                                ),
+                                                child: const Text('Вiдхилити'),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -235,6 +491,44 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
         surfaceTintColor: const Color(0xFFF4FBF9),
         elevation: 0,
         foregroundColor: Colors.black87,
+        actions: [
+          StreamBuilder<List<BookingRequest>>(
+            stream: _bookingService.watchDriverPendingRequests(user.uid),
+            builder: (context, snapshot) {
+              final pendingCount = snapshot.data?.length ?? 0;
+              return IconButton(
+                tooltip: 'Новi запити',
+                onPressed: () => _openDriverRequestsSheet(context, user.uid),
+                icon: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Icon(Icons.notifications_active_rounded, color: primaryTurquoise),
+                    if (pendingCount > 0)
+                      Positioned(
+                        right: -4,
+                        top: -6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            pendingCount > 99 ? '99+' : '$pendingCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: primaryTurquoise,
@@ -373,31 +667,48 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
             ),
             subtitle: Padding(
               padding: const EdgeInsets.only(top: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "${tripObject.departureTime.day}.${tripObject.departureTime.month} | "
-                    "${tripObject.departureTime.hour}:${tripObject.departureTime.minute.toString().padLeft(2, '0')} | "
-                    "${tripObject.pricePerSeat.toInt()} ₴",
-                  ),
-                  const SizedBox(height: 4),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      statusLabel,
-                      style: TextStyle(
-                        color: statusColor,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+              child: StreamBuilder<Map<String, dynamic>?>(
+                stream: _tripService.watchTripData(tripObject.id),
+                builder: (context, snapshot) {
+                  final priceData = _resolveTripCardPrice(
+                    trip: tripObject,
+                    currentUserId: currentUserId,
+                    isDriver: isDriver,
+                    liveData: snapshot.data,
+                  );
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "${tripObject.departureTime.day}.${tripObject.departureTime.month} | "
+                        "${tripObject.departureTime.hour}:${tripObject.departureTime.minute.toString().padLeft(2, '0')} | "
+                        "${priceData.price.toInt()} ₴",
                       ),
-                    ),
-                  ),
-                ],
+                      if (priceData.discounted)
+                        Text(
+                          'Для вас перерахована ціна ділянки',
+                          style: TextStyle(color: primaryTurquoise, fontSize: 11.5, fontWeight: FontWeight.w600),
+                        ),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          statusLabel,
+                          style: TextStyle(
+                            color: statusColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
             trailing: const Icon(Icons.chevron_right_rounded, color: Colors.grey),
@@ -421,11 +732,10 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
 
                 return InkWell(
                   onTap: () {
-                    Navigator.push(
+                    _openDriverRequestsSheet(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => TripDetailScreen(trip: tripObject),
-                      ),
+                      currentUserId,
+                      onlyTripId: tripObject.id,
                     );
                   },
                   child: Container(

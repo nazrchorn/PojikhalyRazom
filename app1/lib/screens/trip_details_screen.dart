@@ -72,6 +72,38 @@ class TripDetailScreen extends StatelessWidget {
     return city.split(',').first.trim().toLowerCase();
   }
 
+  List<String> _buildOrderedRouteCities(Trip sourceTrip) {
+    return <String>[
+      sourceTrip.origin.city,
+      ...sourceTrip.stops.map((s) => s.city),
+      sourceTrip.destination.city,
+    ];
+  }
+
+  double _calculateSegmentPrice(
+    Trip sourceTrip, {
+    String? fromCity,
+    String? toCity,
+  }) {
+    final orderedCities = _buildOrderedRouteCities(sourceTrip);
+    if (orderedCities.length < 2) {
+      return sourceTrip.pricePerSeat;
+    }
+
+    final fromIdx = _findCityIndex(orderedCities, fromCity ?? sourceTrip.origin.city);
+    final toIdx = _findCityIndex(orderedCities, toCity ?? sourceTrip.destination.city);
+    final totalSegments = orderedCities.length - 1;
+
+    if (fromIdx < 0 || toIdx <= fromIdx || totalSegments <= 0) {
+      return sourceTrip.pricePerSeat;
+    }
+
+    final requestedSegments = toIdx - fromIdx;
+    final ratio = (requestedSegments / totalSegments).clamp(0.25, 1.0);
+    final rawPrice = sourceTrip.pricePerSeat * ratio;
+    return rawPrice.roundToDouble();
+  }
+
   DateTime _getPlannedArrival(Trip sourceTrip) {
     final byModel = sourceTrip.getPlannedArrivalTime();
     if (byModel.isAfter(sourceTrip.departureTime)) {
@@ -247,6 +279,13 @@ class TripDetailScreen extends StatelessWidget {
         final routeCities = _buildRouteCities(trip, liveData);
         final DateTime arrivalTime = _getPlannedArrival(trip);
         final int totalMinutes = arrivalTime.difference(trip.departureTime).inMinutes;
+        final double selectedSegmentPrice = _calculateSegmentPrice(
+          trip,
+          fromCity: bookingFromCity,
+          toCity: bookingToCity,
+        );
+        final bool hasSegmentDiscount =
+            showBookingButton && selectedSegmentPrice < trip.pricePerSeat;
 
         return Scaffold(
           backgroundColor: backgroundDeep,
@@ -316,8 +355,19 @@ class TripDetailScreen extends StatelessWidget {
                             child: _cardWrapper(
                               child: Column(
                                 children: [
-                                  Text("${trip.pricePerSeat.toInt()} ₴", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: priceTextColor)),
-                                  const Text("ціна за місце", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                                  Text(
+                                    "${selectedSegmentPrice.toInt()} ₴",
+                                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: priceTextColor),
+                                  ),
+                                  Text(
+                                    hasSegmentDiscount ? 'ціна за вашу ділянку' : 'ціна за місце',
+                                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                                  ),
+                                  if (hasSegmentDiscount)
+                                    Text(
+                                      'Повний маршрут: ${trip.pricePerSeat.toInt()} ₴',
+                                      style: const TextStyle(color: Colors.grey, fontSize: 11),
+                                    ),
                                 ],
                               ),
                             ),
@@ -762,6 +812,7 @@ class TripDetailScreen extends StatelessWidget {
                     final routeText = (request.fromCity != null && request.toCity != null)
                         ? '${request.fromCity} -> ${request.toCity}'
                         : 'Маршрут поїздки';
+                    final requestedPrice = request.requestedPrice;
 
                     return Container(
                       margin: const EdgeInsets.only(top: 8),
@@ -776,6 +827,17 @@ class TripDetailScreen extends StatelessWidget {
                           Text(passengerName, style: const TextStyle(fontWeight: FontWeight.bold)),
                           const SizedBox(height: 4),
                           Text(routeText, style: const TextStyle(color: Colors.black54, fontSize: 13)),
+                           if (requestedPrice != null) ...[
+                             const SizedBox(height: 4),
+                             Text(
+                               'Ціна для пасажира: ${requestedPrice.toInt()} ₴',
+                               style: TextStyle(
+                                 color: primaryTurquoise,
+                                 fontSize: 12.5,
+                                 fontWeight: FontWeight.w700,
+                               ),
+                             ),
+                           ],
                           const SizedBox(height: 8),
                           Row(
                             children: [
@@ -833,6 +895,11 @@ class TripDetailScreen extends StatelessWidget {
         passengerName: passengerName,
         fromCity: bookingFromCity,
         toCity: bookingToCity,
+        requestedPrice: _calculateSegmentPrice(
+          trip,
+          fromCity: bookingFromCity,
+          toCity: bookingToCity,
+        ),
       );
       if (context.mounted) {
         Navigator.pop(context);

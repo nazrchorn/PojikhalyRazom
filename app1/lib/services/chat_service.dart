@@ -62,6 +62,7 @@ class ChatService {
     required String text,
     String tripId = '',
     String type = 'system',
+    Map<String, dynamic>? metadata,
   }) async {
     await _firestore.collection('messages').add({
       'tripId': tripId,
@@ -69,6 +70,7 @@ class ChatService {
       'receiverId': receiverId,
       'text': text,
       'type': type,
+      if (metadata != null && metadata.isNotEmpty) 'metadata': metadata,
       'sentAt': FieldValue.serverTimestamp(),
       'isRead': false,
       'isSystem': true,

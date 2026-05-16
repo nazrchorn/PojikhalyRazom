@@ -8,6 +8,7 @@ class BookingRequest {
   final String? fromCity;
   final String? toCity;
   final String status; // pending | confirmed | rejected | cancelled
+  final double? requestedPrice;
   final DateTime createdAt;
   final DateTime? respondedAt;
   final String? respondedBy;
@@ -19,6 +20,7 @@ class BookingRequest {
     required this.passengerId,
     required this.status,
     required this.createdAt,
+    this.requestedPrice,
     this.fromCity,
     this.toCity,
     this.respondedAt,
@@ -43,6 +45,7 @@ class BookingRequest {
       fromCity: map['fromCity'],
       toCity: map['toCity'],
       status: map['status'] ?? 'pending',
+      requestedPrice: (map['requestedPrice'] as num?)?.toDouble(),
       createdAt: parse(map['createdAt']),
       respondedAt: map['respondedAt'] != null ? parse(map['respondedAt']) : null,
       respondedBy: map['respondedBy'],

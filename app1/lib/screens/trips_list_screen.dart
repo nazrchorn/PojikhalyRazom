@@ -21,6 +21,26 @@ class TripsListScreen extends StatelessWidget {
     return city.split(',').first.toLowerCase().trim();
   }
 
+  int _findCityIndex(List<String> routeCities, String city) {
+    final normalized = _cleanCityName(city);
+    return routeCities.indexWhere((item) => _cleanCityName(item) == normalized);
+  }
+
+  double _calculateSegmentPrice(Trip trip) {
+    final routeCities = <String>[trip.origin.city, ...trip.stops.map((s) => s.city), trip.destination.city];
+    if (routeCities.length < 2) return trip.pricePerSeat;
+
+    final fromIdx = _findCityIndex(routeCities, fromCity);
+    final toIdx = _findCityIndex(routeCities, toCity);
+    final totalSegments = routeCities.length - 1;
+    if (fromIdx < 0 || toIdx <= fromIdx || totalSegments <= 0) {
+      return trip.pricePerSeat;
+    }
+
+    final ratio = ((toIdx - fromIdx) / totalSegments).clamp(0.25, 1.0);
+    return (trip.pricePerSeat * ratio).roundToDouble();
+  }
+
   @override
   Widget build(BuildContext context) {
     final String cleanFrom = _cleanCityName(fromCity);
@@ -71,9 +91,14 @@ class TripsListScreen extends StatelessWidget {
             bool matchFrom = pickupPoints.contains(cleanFrom);
             bool matchTo = dropoffPoints.contains(cleanTo);
 
-            // Перевірка, чи не намагається людина їхати "назад" по маршруту
-            // (Спрощено: якщо обидва міста знайдені, поїздка підходить)
-            return matchFrom && matchTo;
+            if (!matchFrom || !matchTo) {
+              return false;
+            }
+
+            final orderedRoute = <String>[trip.origin.city, ...trip.stops.map((s) => s.city), trip.destination.city];
+            final fromIdx = _findCityIndex(orderedRoute, fromCity);
+            final toIdx = _findCityIndex(orderedRoute, toCity);
+            return fromIdx >= 0 && toIdx > fromIdx;
           }).toList();
 
           if (filteredTrips.isEmpty) {
@@ -85,6 +110,8 @@ class TripsListScreen extends StatelessWidget {
             itemCount: filteredTrips.length,
             itemBuilder: (context, index) {
               final trip = filteredTrips[index];
+              final segmentPrice = _calculateSegmentPrice(trip);
+              final hasDiscount = segmentPrice < trip.pricePerSeat;
 
               return InkWell(
                 onTap: () {
@@ -138,9 +165,19 @@ class TripsListScreen extends StatelessWidget {
                               color: const Color(0xFFE8F8F5),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: Text(
-                              "${trip.pricePerSeat.toInt()} ₴",
-                              style: TextStyle(color: primaryTurquoise, fontWeight: FontWeight.bold, fontSize: 18),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  "${segmentPrice.toInt()} ₴",
+                                  style: TextStyle(color: primaryTurquoise, fontWeight: FontWeight.bold, fontSize: 18),
+                                ),
+                                if (hasDiscount)
+                                  Text(
+                                    "замість ${trip.pricePerSeat.toInt()} ₴",
+                                    style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                                  ),
+                              ],
                             ),
                           ),
                         ],

@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../models/trip.dart';
 import '../services/chat_service.dart';
+import '../services/trip_service.dart';
+import '../services/booking_service.dart';
+import '../services/user_service.dart';
+import 'trip_details_screen.dart';
 
 class MessangerScreen extends StatefulWidget {
   const MessangerScreen({super.key});
@@ -47,7 +52,6 @@ class _MessangerScreenState extends State<MessangerScreen> {
     final mm = date.minute.toString().padLeft(2, '0');
     return '$hh:$mm';
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -279,6 +283,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final ChatService _chatService = ChatService();
+  final TripService _tripService = TripService();
+  final BookingService _bookingService = BookingService();
+  final UserService _userService = UserService();
 
   // Non-null when user is editing an existing message
   String? _editingDocId;
@@ -308,11 +315,37 @@ class _ConversationScreenState extends State<ConversationScreen> {
     return value is bool ? value : false;
   }
 
+  String _safeType(Map<String, dynamic> data) {
+    final value = data['type'];
+    return value is String ? value : '';
+  }
+
+  String _safeTripId(Map<String, dynamic> data) {
+    final value = data['tripId'];
+    return value is String ? value : '';
+  }
+
+  Map<String, dynamic> _safeMetadata(Map<String, dynamic> data) {
+    final value = data['metadata'];
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+    return <String, dynamic>{};
+  }
+
   String _formatTime(DateTime date) {
     if (date.millisecondsSinceEpoch == 0) return '--:--';
     final hh = date.hour.toString().padLeft(2, '0');
     final mm = date.minute.toString().padLeft(2, '0');
     return '$hh:$mm';
+  }
+
+  String _formatTripBadgeText(Trip trip) {
+    final dd = trip.departureTime.day.toString().padLeft(2, '0');
+    final mm = trip.departureTime.month.toString().padLeft(2, '0');
+    final hh = trip.departureTime.hour.toString().padLeft(2, '0');
+    final min = trip.departureTime.minute.toString().padLeft(2, '0');
+    return '${trip.origin.city} -> ${trip.destination.city} | $dd.$mm $hh:$min';
   }
 
   Future<void> _markIncomingAsRead(List<QueryDocumentSnapshot<Map<String, dynamic>>> docs) async {
@@ -380,6 +413,71 @@ class _ConversationScreenState extends State<ConversationScreen> {
     );
     if (confirmed == true) {
       await _chatService.deleteMessage(docId);
+    }
+  }
+
+  Future<void> _openTripFromMessage(String tripId) async {
+    if (tripId.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Для цього повiдомлення не вказано поїздку')),
+      );
+      return;
+    }
+
+    final trip = await _tripService.getTripById(tripId);
+    if (!mounted) return;
+
+    if (trip == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Поїздку не знайдено або її вже видалено')),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => TripDetailScreen(trip: trip)),
+    );
+  }
+
+  Future<void> _handleSystemBookingAction({
+    required String requestId,
+    required bool approve,
+  }) async {
+    final currentUserData = await _userService.loadUserData(widget.currentUserId);
+    final driverName = currentUserData?['name'] as String? ?? 'Водiй';
+    if (!mounted) return;
+
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+
+      if (approve) {
+        await _bookingService.confirmBookingRequest(
+          requestId: requestId,
+          driverName: driverName,
+        );
+      } else {
+        await _bookingService.rejectBookingRequest(
+          requestId: requestId,
+          driverName: driverName,
+        );
+      }
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(approve ? 'Запит пiдтверджено' : 'Запит вiдхилено')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        Navigator.pop(context);
+      }
     }
   }
 
@@ -498,6 +596,15 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     final sentAt = _safeSentAt(data);
                     final isRead = _safeIsRead(data);
                     final isEdited = data['editedAt'] != null;
+                    final type = _safeType(data);
+                    final tripId = _safeTripId(data);
+                    final metadata = _safeMetadata(data);
+                    final requestId = metadata['bookingRequestId'] as String? ?? '';
+                    final bool canResolveRequest =
+                        isSystemChat &&
+                        !isMine &&
+                        type == 'booking_request_created' &&
+                        requestId.isNotEmpty;
 
                     return Align(
                       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
@@ -556,6 +663,115 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                   ],
                                 ],
                               ),
+                              if (isSystemChat) ...[
+                                const SizedBox(height: 8),
+                                InkWell(
+                                  onTap: () => _openTripFromMessage(tripId),
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                                    decoration: BoxDecoration(
+                                      color: isMine
+                                          ? Colors.white.withValues(alpha: 0.14)
+                                          : const Color(0xFFEAF7F4),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: isMine
+                                            ? Colors.white.withValues(alpha: 0.24)
+                                            : const Color(0xFFB8DFD7),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.route_rounded,
+                                          size: 16,
+                                          color: isMine ? Colors.white : const Color(0xFF2F8F7F),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: tripId.isEmpty
+                                              ? Text(
+                                                  'Поїздка не вказана',
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: isMine ? Colors.white : Colors.black87,
+                                                  ),
+                                                )
+                                              : FutureBuilder<Trip?>(
+                                                  future: _tripService.getTripById(tripId),
+                                                  builder: (context, tripSnapshot) {
+                                                    final trip = tripSnapshot.data;
+                                                    final text = trip == null
+                                                        ? 'Поїздка: $tripId'
+                                                        : _formatTripBadgeText(trip);
+                                                    return Text(
+                                                      text,
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight: FontWeight.w600,
+                                                        color: isMine ? Colors.white : Colors.black87,
+                                                      ),
+                                                    );
+                                                  },
+                                                ),
+                                        ),
+                                        Icon(
+                                          Icons.open_in_new_rounded,
+                                          size: 15,
+                                          color: isMine ? Colors.white70 : const Color(0xFF2F8F7F),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              if (canResolveRequest) ...[
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: ElevatedButton(
+                                        onPressed: () => _handleSystemBookingAction(
+                                          requestId: requestId,
+                                          approve: true,
+                                        ),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: const Color(0xFF2F8F7F),
+                                          minimumSize: const Size.fromHeight(34),
+                                          padding: EdgeInsets.zero,
+                                        ),
+                                        child: const Text(
+                                          'Пiдтвердити',
+                                          style: TextStyle(color: Colors.white, fontSize: 12),
+                                        ),
+                                    ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: OutlinedButton(
+                                        onPressed: () => _handleSystemBookingAction(
+                                          requestId: requestId,
+                                          approve: false,
+                                        ),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: Colors.red,
+                                          side: const BorderSide(color: Colors.red),
+                                          minimumSize: const Size.fromHeight(34),
+                                          padding: EdgeInsets.zero,
+                                        ),
+                                        child: const Text('Вiдхилити', style: TextStyle(fontSize: 12)),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ],
                           ),
                         ),
