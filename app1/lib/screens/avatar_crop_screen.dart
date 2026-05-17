@@ -11,7 +11,7 @@ class AvatarCropScreen extends StatefulWidget {
   const AvatarCropScreen({
     super.key,
     required this.imageFile,
-    this.accentColor = const Color(0xFF2F8F7F),
+    this.accentColor = const Color(0xFF1F6F66),
   });
 
   @override
@@ -73,13 +73,13 @@ class _AvatarCropScreenState extends State<AvatarCropScreen> {
     final double cropSize = (size.width - 48).clamp(260.0, 360.0);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6FCFA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Підігнати аватар'),
         centerTitle: true,
-        backgroundColor: const Color(0xFFF4FBF9),
-        surfaceTintColor: const Color(0xFFF4FBF9),
-        foregroundColor: Colors.black87,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        surfaceTintColor: Theme.of(context).appBarTheme.surfaceTintColor,
+        foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
         elevation: 0,
       ),
       body: SafeArea(

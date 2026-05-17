@@ -16,6 +16,7 @@ import 'login_screen.dart';
 import 'registration_screen.dart';
 import 'reviews_list_screen.dart';
 import 'messanger_screen.dart';
+import 'settings_screen.dart';
 
 class PublicProfileScreen extends StatefulWidget {
   final String userId;
@@ -39,9 +40,9 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   final TripService _tripService = TripService();
 
   // Твої фірмові кольори
-  final Color primaryTurquoise = const Color(0xFF2F8F7F);
+  final Color primaryTurquoise = const Color(0xFF1F6F66);
   final Color bgTurquoiseLight = const Color(0xFFE8F8F5);
-  final Color accentTurquoiseDark = const Color(0xFF2F8F7F);
+  final Color accentTurquoiseDark = const Color(0xFF1F6F66);
   final Color accentTurquoiseDeep = const Color(0xFF1F6F66);
   final Color accentTurquoiseSoft = const Color(0xFFD9F3EE);
   final Color accentTurquoiseSurface = const Color(0xFFF2FBF8);
@@ -347,25 +348,30 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     final user = currentUser!;
 
     return Scaffold(
-      backgroundColor: pageMintBackground,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(widget.isMyProfile ? "Мій профіль" : "Профіль",
-            style: const TextStyle(fontWeight: FontWeight.bold)),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).appBarTheme.foregroundColor,
+            )),
         centerTitle: true,
-        backgroundColor: appBarMintBackground,
-        surfaceTintColor: appBarMintBackground,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [appBarMintBackground, accentTurquoiseSoft.withValues(alpha: 0.6)],
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-            ),
-          ),
-        ),
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        surfaceTintColor: Theme.of(context).appBarTheme.surfaceTintColor,
         elevation: 0,
-        foregroundColor: Colors.black87,
+        foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
         actions: [
+          if (widget.isMyProfile)
+            IconButton(
+              icon: const Icon(Icons.settings_rounded),
+              tooltip: 'Налаштування',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                );
+              },
+            ),
           if (widget.isMyProfile)
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert_rounded),
@@ -430,15 +436,16 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      shadows: [
-                        Shadow(color: accentTurquoiseSoft.withValues(alpha: 0.9), blurRadius: 6, offset: const Offset(0, 1)),
-                      ],
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 5),
                   Text(
                     "${user.getAge() ?? '—'} років • ${user.phone}",
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 16,
+                    ),
                   ),
                    if (!widget.isMyProfile &&
                        (fb_auth.FirebaseAuth.instance.currentUser?.uid ?? '').isNotEmpty &&
@@ -465,6 +472,13 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                    FutureBuilder<Map<String, dynamic>>(
                      future: _loadProfileStats(),
                      builder: (context, statsSnapshot) {
+                       final bool dark = Theme.of(context).brightness == Brightness.dark;
+                       final Color chipBg = dark
+                           ? const Color(0xFF1C332F)
+                           : const Color(0xFFEAF7F4);
+                       final Color chipBorder = dark
+                           ? const Color(0xFF2E524B)
+                           : const Color(0xFFD9F3EE);
                        final stats = statsSnapshot.data ?? const <String, dynamic>{};
                        final double averageRating = (stats['averageRating'] as num?)?.toDouble() ?? user.rating;
                        final int reviewCount = (stats['reviewCount'] as num?)?.toInt() ?? 0;
@@ -480,27 +494,27 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                               iconColor: accentTurquoiseDeep,
                              title: averageRating.toStringAsFixed(1),
                              subtitle: 'середній рейтинг',
-                               iconBackground: Colors.white,
-                              backgroundColor: accentTurquoiseSurface,
-                              borderColor: accentTurquoiseSoft,
+                                 iconBackground: Colors.white,
+                                backgroundColor: chipBg,
+                                borderColor: chipBorder,
                            ),
                            _buildStatChip(
                              icon: Icons.directions_car_filled_rounded,
                               iconColor: accentTurquoiseDark,
                              title: '$completedTrips',
                              subtitle: 'виконаних поїздок',
-                               iconBackground: Colors.white,
-                               backgroundColor: accentTurquoiseSurface,
-                               borderColor: accentTurquoiseSoft,
+                                 iconBackground: Colors.white,
+                                backgroundColor: chipBg,
+                                borderColor: chipBorder,
                            ),
                            _buildStatChip(
                              icon: Icons.rate_review_rounded,
                               iconColor: accentTurquoiseDark,
                              title: '$reviewCount',
                              subtitle: 'відгуків',
-                               iconBackground: Colors.white,
-                              backgroundColor: accentTurquoiseSurface,
-                              borderColor: accentTurquoiseSoft,
+                                 iconBackground: Colors.white,
+                                backgroundColor: chipBg,
+                                borderColor: chipBorder,
                            ),
                          ],
                        );
@@ -565,10 +579,9 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
       child: Text(
         title,
         style: TextStyle(
-          fontSize: 18,
+          fontSize: 19,
           fontWeight: FontWeight.bold,
-          color: accentTurquoiseDeep,
-          shadows: [Shadow(color: accentTurquoiseSoft.withValues(alpha: 0.8), blurRadius: 4, offset: const Offset(0, 1))],
+          color: const Color(0xFF1F6F66),
         ),
       ),
     );
@@ -577,7 +590,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   Widget _buildInfoCard(List<Widget> children) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20),
+      decoration: BoxDecoration(color: Theme.of(context).cardColor, borderRadius: BorderRadius.circular(20),
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)]),
       child: Column(children: children),
     );
@@ -587,16 +600,19 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade100),
+        border: Border.all(color: accentTurquoiseSoft),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)],
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.all(12),
         leading: Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: accentTurquoiseSoft, borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(
+            color: const Color(0xFFBFE9DD),
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: Icon(Icons.directions_car_filled_rounded, color: accentTurquoiseDark),
         ),
         title: Text("${car.brand} ${car.model}", style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -612,7 +628,20 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   }
 
   Widget _buildHabitRow(IconData icon, String text) {
-    return Row(children: [Icon(icon, color: accentTurquoiseDark, size: 22), const SizedBox(width: 15), Text(text, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500))]);
+    return Row(
+      children: [
+        Icon(icon, color: accentTurquoiseDark, size: 22),
+        const SizedBox(width: 15),
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildAddCarButton() {
@@ -746,7 +775,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)],
         ),

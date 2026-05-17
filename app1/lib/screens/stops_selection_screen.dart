@@ -26,7 +26,7 @@ class _StopSelectionScreenState extends State<StopSelectionScreen> {
   List<Map<String, dynamic>> suggestedStops = [];
   List<Map<String, dynamic>> selectedStops = [];
   bool isLoading = true;
-  final Color accentColor = const Color(0xFF2F8F7F);
+  final Color accentColor = const Color(0xFF1F6F66);
 
   @override
   void initState() {

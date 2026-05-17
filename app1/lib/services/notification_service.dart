@@ -97,6 +97,10 @@ class NotificationService {
     if (token != null) await _saveTokenToFirestore(token);
   }
 
+  Future<void> requestPermissionsAgain() async {
+    await _requestPermission();
+  }
+
   Future<void> _requestPermission() async {
     if (Platform.isAndroid) {
       final plugin = _localNotifications

@@ -33,7 +33,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
   final UserService _userService = UserService();
   final ChatService _chatService = ChatService();
 
-  final Color primaryTurquoise = const Color(0xFF2F8F7F);
+  final Color primaryTurquoise = const Color(0xFF1F6F66);
   final Color bgTurquoiseLight = const Color(0xFFE8F8F5);
 
   @override
@@ -100,14 +100,14 @@ class _ReviewScreenState extends State<ReviewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6FCFA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Написати відгук'),
         centerTitle: true,
-        backgroundColor: const Color(0xFFF4FBF9),
-        surfaceTintColor: const Color(0xFFF4FBF9),
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        surfaceTintColor: Theme.of(context).appBarTheme.surfaceTintColor,
         elevation: 0,
-        foregroundColor: Colors.black87,
+        foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),

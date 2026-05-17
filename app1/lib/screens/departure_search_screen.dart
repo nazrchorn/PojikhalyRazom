@@ -10,6 +10,7 @@ class DepartureSearchScreen extends StatefulWidget {
 }
 
 class _DepartureSearchScreenState extends State<DepartureSearchScreen> {
+  static const Color _accentGreen = Color(0xFF1F6F66);
   final _controller = TextEditingController();
   final MapService _mapService = MapService();
 
@@ -52,12 +53,12 @@ class _DepartureSearchScreenState extends State<DepartureSearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6FCFA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text("Точка відправлення"),
-        backgroundColor: const Color(0xFFF4FBF9),
-        surfaceTintColor: const Color(0xFFF4FBF9),
-        foregroundColor: Colors.black,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        surfaceTintColor: Theme.of(context).appBarTheme.surfaceTintColor,
+        foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
         elevation: 0,
       ),
       body: Column(
@@ -70,12 +71,15 @@ class _DepartureSearchScreenState extends State<DepartureSearchScreen> {
               onChanged: _onChanged,
               decoration: InputDecoration(
                 hintText: "Вулиця, номер будинку або місто...",
-                prefixIcon: const Icon(Icons.location_on, color: Color(0xFF2F8F7F)),
+                prefixIcon: const Icon(Icons.location_on, color: _accentGreen),
                 suffixIcon: _isLoading
-                    ? const Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2))
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: CircularProgressIndicator(strokeWidth: 2, color: _accentGreen),
+                      )
                     : null,
                 filled: true,
-                fillColor: Colors.grey.shade100,
+                fillColor: Theme.of(context).inputDecorationTheme.fillColor,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
               ),
             ),

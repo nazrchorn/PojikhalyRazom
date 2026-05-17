@@ -21,7 +21,7 @@ class _SearchScreenState extends State<SearchScreen> {
   late String _toCity;
   DateTime? _selectedDate;
 
-  final Color primaryTurquoise = const Color(0xFF2F8F7F);
+  final Color primaryTurquoise = const Color(0xFF1F6F66);
 
   @override
   void initState() {
@@ -32,6 +32,11 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Future<void> _selectSingleDate() async {
+    final scheme = Theme.of(context).colorScheme;
+    final datePickerScheme = scheme.copyWith(
+      primary: const Color(0xFF1F6F66),
+      secondary: const Color(0xFF1F6F66),
+    );
     final picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate ?? DateTime.now(),
@@ -39,8 +44,13 @@ class _SearchScreenState extends State<SearchScreen> {
       lastDate: DateTime.now().add(const Duration(days: 90)),
       builder: (BuildContext context, Widget? child) {
         return Theme(
-          data: ThemeData.light().copyWith(
-            primaryColor: const Color(0xFF2F8F7F),
+          data: Theme.of(context).copyWith(
+            colorScheme: datePickerScheme,
+            datePickerTheme: DatePickerThemeData(
+              headerBackgroundColor: const Color(0xFF1F6F66),
+              headerForegroundColor: Colors.white,
+              todayBorder: BorderSide(color: const Color(0xFF1F6F66)),
+            ),
           ),
           child: child ?? Container(),
         );
@@ -98,15 +108,19 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _buildCitySelector(String label, String value, IconData icon, bool isFrom) {
     final isEmpty = value.isEmpty;
+    final bool dark = Theme.of(context).brightness == Brightness.dark;
+    final Color fieldBg = dark ? const Color(0xFF23453E) : const Color(0xFFF4F6F6);
+    final Color fieldBorder = dark ? const Color(0xFF3F7C71) : const Color(0xFFD7DDDD);
+
     return InkWell(
       onTap: () => _selectCity(isFrom),
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
         decoration: BoxDecoration(
-          color: Colors.grey.shade100,
+          color: fieldBg,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade300),
+          border: Border.all(color: fieldBorder),
         ),
         child: Row(
           children: [
@@ -137,13 +151,18 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bool dark = Theme.of(context).brightness == Brightness.dark;
+    final Color accentGreen = dark ? const Color(0xFF2A5C55) : const Color(0xFF1F6F66);
+    final Color dateBg = dark ? const Color(0xFF23453E) : const Color(0xFFF4F6F6);
+    final Color dateBorder = dark ? const Color(0xFF3F7C71) : const Color(0xFFD7DDDD);
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF6FCFA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Пошук поїздок'),
-        backgroundColor: const Color(0xFFF4FBF9),
-        surfaceTintColor: const Color(0xFFF4FBF9),
-        foregroundColor: Colors.black,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        surfaceTintColor: Theme.of(context).appBarTheme.surfaceTintColor,
+        foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
         elevation: 0,
       ),
       body: Padding(
@@ -158,7 +177,7 @@ class _SearchScreenState extends State<SearchScreen> {
                Container(
                  padding: const EdgeInsets.all(14),
                  decoration: BoxDecoration(
-                   color: Colors.white,
+                    color: Theme.of(context).cardColor,
                    borderRadius: BorderRadius.circular(14),
                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 8)],
                  ),
@@ -172,9 +191,9 @@ class _SearchScreenState extends State<SearchScreen> {
                        child: Container(
                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                          decoration: BoxDecoration(
-                           color: Colors.grey.shade50,
+                            color: dateBg,
                            borderRadius: BorderRadius.circular(10),
-                           border: Border.all(color: Colors.grey.shade300),
+                            border: Border.all(color: dateBorder),
                          ),
                          child: Row(
                            children: [
@@ -187,11 +206,14 @@ class _SearchScreenState extends State<SearchScreen> {
                                      : "Оберіть дату",
                                  style: TextStyle(
                                    fontWeight: FontWeight.w600,
-                                   color: _selectedDate != null ? Colors.black : Colors.grey,
+                                    color: _selectedDate != null
+                                        ? Theme.of(context).colorScheme.onSurface
+                                        : Theme.of(context).hintColor,
                                  ),
                                ),
                              ),
-                             Icon(Icons.arrow_drop_down_rounded, color: Colors.grey.shade500),
+                              Icon(Icons.arrow_drop_down_rounded,
+                                  color: Theme.of(context).hintColor),
                            ],
                          ),
                        ),
@@ -203,7 +225,8 @@ class _SearchScreenState extends State<SearchScreen> {
                ElevatedButton(
                 onPressed: _onSearch,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryTurquoise,
+                  backgroundColor: accentGreen,
+                  foregroundColor: const Color(0xFFF1FBF8),
                   minimumSize: const Size.fromHeight(55),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   elevation: 0,

@@ -24,10 +24,10 @@ class _RouteSelectionScreenState extends State<RouteSelectionScreen> {
   final MapController _mapController = MapController();
   final RouteService _routeService = RouteService();
 
-  static const Color _primaryTurquoise = Color(0xFF2F8F7F);
+  static const Color _primaryTurquoise = Color(0xFF1F6F66);
 
   static const List<Color> _routeColors = [
-    Color(0xFF2F8F7F),
+    Color(0xFF1F6F66),
     Color(0xFF1565C0),
     Color(0xFFE65100),
   ];
@@ -166,15 +166,15 @@ class _RouteSelectionScreenState extends State<RouteSelectionScreen> {
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6FCFA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Вибір маршруту',
             style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
-        backgroundColor: const Color(0xFFF4FBF9),
-        surfaceTintColor: const Color(0xFFF4FBF9),
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        surfaceTintColor: Theme.of(context).appBarTheme.surfaceTintColor,
         elevation: 0,
-        foregroundColor: Colors.black87,
+        foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
       ),
       body: Stack(
         children: [
@@ -210,7 +210,7 @@ class _RouteSelectionScreenState extends State<RouteSelectionScreen> {
                     width: 40,
                     height: 40,
                     child: const Icon(Icons.location_on,
-                        color: Color(0xFF2F8F7F), size: 40),
+                        color: Color(0xFF1F6F66), size: 40),
                   ),
                   Marker(
                     point: destPt,
@@ -246,7 +246,7 @@ class _RouteSelectionScreenState extends State<RouteSelectionScreen> {
                           height: 18,
                           child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Color(0xFF2F8F7F)),
+                              color: Color(0xFF1F6F66)),
                         ),
                         SizedBox(width: 10),
                         Text('Завантаження маршруту…'),

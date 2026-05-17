@@ -24,7 +24,7 @@ class _TripsListScreenState extends State<TripsListScreen> {
   bool _allowPets = false;
   bool _allowChildren = false;
 
-  final Color primaryTurquoise = const Color(0xFF2F8F7F);
+  final Color primaryTurquoise = const Color(0xFF1F6F66);
   final TripService _tripService = TripService();
 
   @override
@@ -76,29 +76,32 @@ class _TripsListScreenState extends State<TripsListScreen> {
     final String cleanTo = _cleanCityName(widget.toCity);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6FCFA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: Text(
           "${widget.fromCity.split(',').first} → ${widget.toCity.split(',').first}",
-          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).appBarTheme.foregroundColor,
+          ),
         ),
-        backgroundColor: const Color(0xFFF4FBF9),
-        surfaceTintColor: const Color(0xFFF4FBF9),
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        surfaceTintColor: Theme.of(context).appBarTheme.surfaceTintColor,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black87),
+        iconTheme: IconThemeData(color: Theme.of(context).appBarTheme.foregroundColor),
       ),
       body: Column(
         children: [
           // Навігація по датам
           Container(
-            color: Colors.white,
+            color: Theme.of(context).cardColor,
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 IconButton(
                   onPressed: _previousDay,
-                  icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF2F8F7F)),
+                  icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF1F6F66)),
                 ),
                 Column(
                   children: [
@@ -108,13 +111,13 @@ class _TripsListScreenState extends State<TripsListScreen> {
                     ),
                     Text(
                       _getDayName(_currentDate),
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      style: TextStyle(fontSize: 12, color: Theme.of(context).hintColor),
                     ),
                   ],
                 ),
                 IconButton(
                   onPressed: _nextDay,
-                  icon: const Icon(Icons.arrow_forward_ios, color: Color(0xFF2F8F7F)),
+                  icon: const Icon(Icons.arrow_forward_ios, color: Color(0xFF1F6F66)),
                 ),
               ],
             ),
@@ -122,7 +125,7 @@ class _TripsListScreenState extends State<TripsListScreen> {
           const Divider(height: 1),
           // Фільтри
           Container(
-            color: Colors.white,
+            color: Theme.of(context).cardColor,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -153,7 +156,7 @@ class _TripsListScreenState extends State<TripsListScreen> {
                   return const Center(child: Text("Помилка завантаження даних"));
                 }
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator(color: Color(0xFF2F8F7F)));
+                  return const Center(child: CircularProgressIndicator(color: Color(0xFF1F6F66)));
                 }
 
                 if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -231,7 +234,7 @@ class _TripsListScreenState extends State<TripsListScreen> {
                         margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: Theme.of(context).cardColor,
                           borderRadius: BorderRadius.circular(24),
                           boxShadow: [
                             BoxShadow(
@@ -255,14 +258,16 @@ class _TripsListScreenState extends State<TripsListScreen> {
                                     ),
                                     Text(
                                       "${trip.departureTime.day.toString().padLeft(2, '0')}.${trip.departureTime.month.toString().padLeft(2, '0')}.${trip.departureTime.year}",
-                                      style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                                      style: TextStyle(color: Theme.of(context).hintColor, fontSize: 13),
                                     ),
                                   ],
                                 ),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFE8F8F5),
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .secondaryContainer,
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Column(
@@ -275,7 +280,7 @@ class _TripsListScreenState extends State<TripsListScreen> {
                                       if (hasDiscount)
                                         Text(
                                           "замість ${trip.pricePerSeat.toInt()} ₴",
-                                          style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                                          style: TextStyle(color: Theme.of(context).hintColor, fontSize: 11),
                                         ),
                                     ],
                                   ),
@@ -288,7 +293,7 @@ class _TripsListScreenState extends State<TripsListScreen> {
                                 Column(
                                   children: [
                                     Icon(Icons.radio_button_checked, size: 14, color: primaryTurquoise),
-                                    Container(width: 2, height: 20, color: Colors.grey.shade200),
+                                    Container(width: 2, height: 20, color: Theme.of(context).dividerColor),
                                     const Icon(Icons.location_on, size: 14, color: Colors.grey),
                                   ],
                                 ),
@@ -311,11 +316,15 @@ class _TripsListScreenState extends State<TripsListScreen> {
                               children: [
                                 Row(
                                   children: [
-                                    Icon(Icons.airline_seat_recline_normal_rounded, size: 18, color: Colors.grey.shade600),
+                                    Icon(
+                                      Icons.airline_seat_recline_normal_rounded,
+                                      size: 18,
+                                      color: Theme.of(context).hintColor,
+                                    ),
                                     const SizedBox(width: 4),
                                     Text(
                                       "${trip.availableSeats} вільних місць",
-                                      style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                                      style: TextStyle(color: Theme.of(context).hintColor, fontSize: 13),
                                     ),
                                   ],
                                 ),
@@ -357,10 +366,12 @@ class _TripsListScreenState extends State<TripsListScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF2F8F7F) : Colors.grey.shade100,
+          color: isSelected
+              ? const Color(0xFF1F6F66)
+              : Theme.of(context).colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? const Color(0xFF2F8F7F) : Colors.grey.shade300,
+            color: isSelected ? const Color(0xFF1F6F66) : Theme.of(context).dividerColor,
           ),
         ),
         child: Text(
@@ -368,7 +379,9 @@ class _TripsListScreenState extends State<TripsListScreen> {
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: isSelected ? Colors.white : Colors.grey.shade700,
+            color: isSelected
+                ? Colors.white
+                : Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
       ),
@@ -380,9 +393,20 @@ class _TripsListScreenState extends State<TripsListScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.search_off_rounded, size: 80, color: Colors.grey.shade200),
+          Icon(
+            Icons.search_off_rounded,
+            size: 80,
+            color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          ),
           const SizedBox(height: 16),
-          const Text("Поїздок не знайдено", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black54)),
+          Text(
+            "Поїздок не знайдено",
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
           const SizedBox(height: 8),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 40),

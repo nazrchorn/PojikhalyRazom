@@ -32,11 +32,11 @@ class TripDetailScreen extends StatelessWidget {
   });
 
   // Палітра кольорів
-  final Color primaryTurquoise = const Color(0xFF2F8F7F);
+  final Color primaryTurquoise = const Color(0xFF1F6F66);
   final Color mapIconColor = const Color(0xFF4DB6AC);
   final Color priceTextColor = const Color(0xFF26A69A);
   final Color backgroundDeep = const Color(0xFFF2F5F8);
-  final Color bgTurquoiseLight = const Color(0xFFE0F2F1);
+  final Color bgTurquoiseLight = const Color(0xFFF1F5F4);
   final Color inactiveGrey = const Color(0xFFB0BEC5); // Сірий для заборон
   final TripService _tripService = TripService();
   final UserService _userService = UserService();
@@ -159,9 +159,10 @@ class TripDetailScreen extends StatelessWidget {
   }
 
   // ОНОВЛЕНИЙ ФІЛЬТР: Якщо isDisabled = true, то колір сірий
-  Widget _buildModernFilter(String text, IconData icon, {bool isAccent = false, bool isDisabled = false}) {
-    Color contentColor = isDisabled ? inactiveGrey : (isAccent ? Colors.white : mapIconColor);
-    Color bgColor = isAccent ? primaryTurquoise : Colors.white;
+  Widget _buildModernFilter(BuildContext context, String text, IconData icon,
+      {bool isAccent = false, bool isDisabled = false}) {
+    final Color contentColor = isDisabled ? inactiveGrey : (isAccent ? Colors.white : mapIconColor);
+    final Color bgColor = isAccent ? primaryTurquoise : Theme.of(context).cardColor;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -185,7 +186,9 @@ class TripDetailScreen extends StatelessWidget {
           Text(
               text,
               style: TextStyle(
-                  color: isDisabled ? inactiveGrey : Colors.blueGrey.shade800,
+                  color: isDisabled
+                      ? inactiveGrey
+                      : Theme.of(context).colorScheme.onSurface,
                   fontWeight: FontWeight.bold,
                   fontSize: 12
               )
@@ -195,12 +198,12 @@ class TripDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _cardWrapper({required Widget child}) {
+  Widget _cardWrapper(BuildContext context, {required Widget child}) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(22),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 15, offset: const Offset(0, 6))],
       ),
@@ -208,7 +211,7 @@ class TripDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildTimelinePoint({
+  Widget _buildTimelinePoint(BuildContext context, {
     required String time,
     required String city,
     required bool isLast,
@@ -230,7 +233,9 @@ class TripDetailScreen extends StatelessWidget {
                 Container(
                   width: isHighlighted ? 16 : 14, height: isHighlighted ? 16 : 14,
                   decoration: BoxDecoration(
-                    color: isFirst || isLast || isHighlighted ? markerColor : Colors.white,
+                    color: isFirst || isLast || isHighlighted
+                        ? markerColor
+                        : Theme.of(context).cardColor,
                     border: Border.all(color: markerColor, width: 3),
                     shape: BoxShape.circle,
                   ),
@@ -293,10 +298,10 @@ class TripDetailScreen extends StatelessWidget {
           appBar: AppBar(
             title: const Text("Деталі поїздки"),
             centerTitle: true,
-            backgroundColor: const Color(0xFFF4FBF9),
-            surfaceTintColor: const Color(0xFFF4FBF9),
+            backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+            surfaceTintColor: Theme.of(context).appBarTheme.surfaceTintColor,
             elevation: 0,
-            foregroundColor: Colors.black87,
+            foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
           ),
           body: Column(
             children: [
@@ -306,7 +311,7 @@ class TripDetailScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _cardWrapper(
+                      _cardWrapper(context,
                         child: Row(
                           children: [
                             Icon(Icons.calendar_today_rounded, color: primaryTurquoise),
@@ -315,7 +320,10 @@ class TripDetailScreen extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(_getFormattedDate(trip.departureTime), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                                Text("Відправлення о ${trip.departureTime.hour}:${trip.departureTime.minute.toString().padLeft(2, '0')}", style: TextStyle(color: Colors.grey.shade500)),
+                                Text(
+                                  "Відправлення о ${trip.departureTime.hour}:${trip.departureTime.minute.toString().padLeft(2, '0')}",
+                                  style: TextStyle(color: Theme.of(context).hintColor),
+                                ),
                               ],
                             ),
                           ],
@@ -324,7 +332,7 @@ class TripDetailScreen extends StatelessWidget {
                       const SizedBox(height: 25),
                       const Text("Маршрут", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                       const SizedBox(height: 12),
-                      _cardWrapper(
+                      _cardWrapper(context,
                         child: Column(
                           children: List.generate(routeCities.length, (index) {
                             final int minutesFromStart = routeCities.length <= 1
@@ -339,6 +347,7 @@ class TripDetailScreen extends StatelessWidget {
                                 _normalizeCity(cityName) == _normalizeCity(currentSegmentTo ?? '');
 
                             return _buildTimelinePoint(
+                              context,
                               time: pointTimeText,
                               city: cityName,
                               isFirst: index == 0,
@@ -353,7 +362,7 @@ class TripDetailScreen extends StatelessWidget {
                       Row(
                         children: [
                           Expanded(
-                            child: _cardWrapper(
+                            child: _cardWrapper(context,
                               child: Column(
                                 children: [
                                   Text(
@@ -375,7 +384,7 @@ class TripDetailScreen extends StatelessWidget {
                           ),
                           const SizedBox(width: 15),
                           Expanded(
-                            child: _cardWrapper(
+                            child: _cardWrapper(context,
                               child: Column(
                                 children: [
                                   Text("$liveSeats", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
@@ -392,20 +401,23 @@ class TripDetailScreen extends StatelessWidget {
                       Wrap(
                         spacing: 10, runSpacing: 10,
                         children: [
-                          if (trip.womenOnly) _buildModernFilter("Тільки жінки", FontAwesomeIcons.personDress, isAccent: true),
+                          if (trip.womenOnly)
+                            _buildModernFilter(context, "Тільки жінки", FontAwesomeIcons.personDress, isAccent: true),
                           // Тварини: якщо не можна, то сірий колір
                           _buildModernFilter(
+                              context,
                               trip.allowPets ? "З тваринами" : "Без тварин",
                               FontAwesomeIcons.paw,
                               isDisabled: !trip.allowPets
                           ),
                           // Діти: якщо не можна, то сірий колір
                           _buildModernFilter(
+                              context,
                               trip.allowChildren ? "Можна з дітьми" : "Без дітей",
                               FontAwesomeIcons.child,
                               isDisabled: !trip.allowChildren
                           ),
-                          _buildModernFilter("Не палити", FontAwesomeIcons.banSmoking),
+                          _buildModernFilter(context, "Не палити", FontAwesomeIcons.banSmoking),
                         ],
                       ),
                       if (passengerIds.isNotEmpty) ...[
@@ -449,7 +461,7 @@ class TripDetailScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 30),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
         boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 15)],
       ),
@@ -480,7 +492,10 @@ class TripDetailScreen extends StatelessWidget {
                         Expanded(
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Text(user.name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-                            Text("${user.rating.toStringAsFixed(1)} ★ • ${user.tripsCompleted} поїздок", style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                            Text(
+                              "${user.rating.toStringAsFixed(1)} ★ • ${user.tripsCompleted} поїздок",
+                              style: TextStyle(color: Theme.of(context).hintColor, fontSize: 13),
+                            ),
                           ]),
                         ),
                         const Icon(Icons.chevron_right, color: Colors.grey),
@@ -599,13 +614,13 @@ class TripDetailScreen extends StatelessWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
+                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: const Text(
+                    child: Text(
                       'Немає вiльних мiсць для запиту',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.black54),
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                     ),
                   );
                 }
@@ -819,7 +834,7 @@ class TripDetailScreen extends StatelessWidget {
                       margin: const EdgeInsets.only(top: 8),
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: Theme.of(context).cardColor,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Column(
@@ -827,7 +842,13 @@ class TripDetailScreen extends StatelessWidget {
                         children: [
                            Text(passengerName, style: const TextStyle(fontWeight: FontWeight.bold)),
                            const SizedBox(height: 4),
-                           Text(routeText, style: const TextStyle(color: Colors.black54, fontSize: 13)),
+                           Text(
+                             routeText,
+                             style: TextStyle(
+                               color: Theme.of(context).colorScheme.onSurfaceVariant,
+                               fontSize: 13,
+                             ),
+                           ),
                            if (request.pickupAddress != null) ...[
                              const SizedBox(height: 4),
                              Container(
@@ -845,7 +866,10 @@ class TripDetailScreen extends StatelessWidget {
                                        'Посадка: ${request.pickupAddress}',
                                        maxLines: 1,
                                        overflow: TextOverflow.ellipsis,
-                                       style: const TextStyle(fontSize: 11, color: Colors.black54),
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                        ),
                                      ),
                                    ),
                                  ],
@@ -869,7 +893,10 @@ class TripDetailScreen extends StatelessWidget {
                                        'Висадка: ${request.dropoffAddress}',
                                        maxLines: 1,
                                        overflow: TextOverflow.ellipsis,
-                                       style: const TextStyle(fontSize: 11, color: Colors.black54),
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                        ),
                                      ),
                                    ),
                                  ],
@@ -1210,7 +1237,7 @@ class TripDetailScreen extends StatelessWidget {
 
     final selectedTarget = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),

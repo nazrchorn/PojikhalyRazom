@@ -9,6 +9,7 @@ import 'screens/route_selection_screen.dart';
 import 'screens/driver_booking_request_screen.dart';
 import 'services/notification_service.dart';
 import 'theme/app_theme.dart';
+import 'theme/theme_controller.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -50,33 +51,40 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      navigatorKey: rootNavigatorKey,
-      title: 'Pojikhaly Razom',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light,
-      // Стрім слухає: залогінений юзер чи ні
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(body: Center(child: CircularProgressIndicator(color: Color(0xFF2F8F7F))));
-          }
-          if (snapshot.hasData) {
-            return const MainScreen();
-          }
-          return const LoginScreen(); // Якщо не залогінений — на вхід
-        },
-      ),
-      routes: {
-        '/login': (context) => const LoginScreen(),
-        '/register': (context) => const RegistrationScreen(),
-        '/main': (context) => const MainScreen(),
-        '/routeSelection': (context) => RouteSelectionScreen(
-          origin: {"lat": 49.8408, "lng": 24.0036, "address": "Львів"},
-          destination: {"lat": 48.8448, "lng": 23.4448, "address": "Самбір"},
-          apiKey: orsKey,
-        ),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemeController.themeMode,
+      builder: (context, mode, _) {
+        return MaterialApp(
+          navigatorKey: rootNavigatorKey,
+          title: 'Pojikhaly Razom',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light,
+          darkTheme: AppTheme.dark,
+          themeMode: mode,
+          // Стрім слухає: залогінений юзер чи ні
+          home: StreamBuilder<User?>(
+            stream: FirebaseAuth.instance.authStateChanges(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(body: Center(child: CircularProgressIndicator(color: Color(0xFF1F6F66))));
+              }
+              if (snapshot.hasData) {
+                return const MainScreen();
+              }
+              return const LoginScreen(); // Якщо не залогінений — на вхід
+            },
+          ),
+          routes: {
+            '/login': (context) => const LoginScreen(),
+            '/register': (context) => const RegistrationScreen(),
+            '/main': (context) => const MainScreen(),
+            '/routeSelection': (context) => RouteSelectionScreen(
+              origin: {"lat": 49.8408, "lng": 24.0036, "address": "Львів"},
+              destination: {"lat": 48.8448, "lng": 23.4448, "address": "Самбір"},
+              apiKey: orsKey,
+            ),
+          },
+        );
       },
     );
   }

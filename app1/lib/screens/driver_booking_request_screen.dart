@@ -26,7 +26,7 @@ class _DriverBookingRequestScreenState extends State<DriverBookingRequestScreen>
   final TripService _tripService = TripService();
   final UserService _userService = UserService();
 
-  final Color primaryTurquoise = const Color(0xFF2F8F7F);
+  final Color primaryTurquoise = const Color(0xFF1F6F66);
   bool _actionInProgress = false;
 
   Future<void> _confirmRequest(BookingRequest request) async {
@@ -134,7 +134,7 @@ class _DriverBookingRequestScreenState extends State<DriverBookingRequestScreen>
           point: LatLng(request.dropoffLat!, request.dropoffLng!),
           width: 46,
           height: 46,
-          child: const Icon(Icons.flag_circle, color: Color(0xFF2F8F7F), size: 34),
+          child: const Icon(Icons.flag_circle, color: Color(0xFF1F6F66), size: 34),
         ),
       );
     }
@@ -167,12 +167,12 @@ class _DriverBookingRequestScreenState extends State<DriverBookingRequestScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6FCFA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Прийняття пасажира'),
-        backgroundColor: const Color(0xFFF4FBF9),
-        surfaceTintColor: const Color(0xFFF4FBF9),
-        foregroundColor: Colors.black87,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        surfaceTintColor: Theme.of(context).appBarTheme.surfaceTintColor,
+        foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
         elevation: 0,
       ),
       body: StreamBuilder<BookingRequest?>(
@@ -249,7 +249,7 @@ class _DriverBookingRequestScreenState extends State<DriverBookingRequestScreen>
                               if (request.pickupAddress != null)
                                 _StatusChip(label: 'Посадка: задана', color: Colors.blue),
                               if (request.dropoffAddress != null)
-                                _StatusChip(label: 'Висадка: задана', color: const Color(0xFF2F8F7F)),
+                                _StatusChip(label: 'Висадка: задана', color: const Color(0xFF1F6F66)),
                             ],
                           ),
                         ],

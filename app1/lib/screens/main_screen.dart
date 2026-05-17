@@ -8,6 +8,7 @@ import 'messanger_screen.dart';
 
 class MainScreen extends StatefulWidget {
   final int initialIndex;
+  static int lastSelectedIndex = 0;
 
   const MainScreen({super.key, this.initialIndex = 0});
 
@@ -22,7 +23,9 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedIndex = widget.initialIndex;
+    _selectedIndex = widget.initialIndex != 0
+        ? widget.initialIndex
+        : MainScreen.lastSelectedIndex;
   }
 
   // Створюємо список екранів через метод, щоб отримати актуальний UID
@@ -43,6 +46,7 @@ class _MainScreenState extends State<MainScreen> {
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
+      MainScreen.lastSelectedIndex = index;
     });
   }
 
@@ -99,11 +103,14 @@ class _MainScreenState extends State<MainScreen> {
           final unreadCount = snapshot.data ?? 0;
 
           return BottomNavigationBar(
-            backgroundColor: const Color(0xFFF4FBF9),
+            backgroundColor:
+                Theme.of(context).bottomNavigationBarTheme.backgroundColor,
             currentIndex: _selectedIndex,
             onTap: _onItemTapped,
-            selectedItemColor: const Color(0xFF1F6F66),
-            unselectedItemColor: Colors.grey,
+            selectedItemColor:
+                Theme.of(context).bottomNavigationBarTheme.selectedItemColor,
+            unselectedItemColor:
+                Theme.of(context).bottomNavigationBarTheme.unselectedItemColor,
             type: BottomNavigationBarType.fixed,
             items: [
               const BottomNavigationBarItem(

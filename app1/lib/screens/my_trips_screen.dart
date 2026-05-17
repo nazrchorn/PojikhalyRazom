@@ -36,7 +36,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
   bool _reviewPromptPrefsLoaded = false;
   bool _reviewPromptDismissedForever = false;
 
-  final Color primaryTurquoise = const Color(0xFF2F8F7F);
+  final Color primaryTurquoise = const Color(0xFF1F6F66);
 
   @override
   void initState() {
@@ -383,7 +383,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -467,7 +467,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
                                   return Container(
                                     padding: const EdgeInsets.all(12),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFF8FCFB),
+                                      color: Theme.of(context).cardColor,
                                       borderRadius: BorderRadius.circular(14),
                                       border: Border.all(color: primaryTurquoise.withValues(alpha: 0.25)),
                                     ),
@@ -476,7 +476,12 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
                                       children: [
                                          Text(passengerName, style: const TextStyle(fontWeight: FontWeight.w700)),
                                          const SizedBox(height: 4),
-                                         Text(routeText, style: const TextStyle(color: Colors.black54)),
+                                         Text(
+                                           routeText,
+                                           style: TextStyle(
+                                             color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                           ),
+                                         ),
                                          if (request.pickupAddress != null) ...[
                                            const SizedBox(height: 4),
                                             InkWell(
@@ -504,7 +509,12 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
                                                         'Посадка: ${request.pickupAddress}',
                                                         maxLines: 1,
                                                         overflow: TextOverflow.ellipsis,
-                                                        style: const TextStyle(fontSize: 11, color: Colors.black54),
+                                                        style: TextStyle(
+                                                          fontSize: 11,
+                                                          color: Theme.of(context)
+                                                              .colorScheme
+                                                              .onSurfaceVariant,
+                                                        ),
                                                       ),
                                                     ),
                                                   ],
@@ -539,7 +549,12 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
                                                         'Висадка: ${request.dropoffAddress}',
                                                         maxLines: 1,
                                                         overflow: TextOverflow.ellipsis,
-                                                        style: const TextStyle(fontSize: 11, color: Colors.black54),
+                                                        style: TextStyle(
+                                                          fontSize: 11,
+                                                          color: Theme.of(context)
+                                                              .colorScheme
+                                                              .onSurfaceVariant,
+                                                        ),
                                                       ),
                                                     ),
                                                   ],
@@ -652,14 +667,14 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6FCFA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text("Мої поїздки", style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
-        backgroundColor: const Color(0xFFF4FBF9),
-        surfaceTintColor: const Color(0xFFF4FBF9),
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        surfaceTintColor: Theme.of(context).appBarTheme.surfaceTintColor,
         elevation: 0,
-        foregroundColor: Colors.black87,
+        foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
         actions: [
           StreamBuilder<List<BookingRequest>>(
             stream: _bookingService.watchDriverPendingRequests(user.uid),
@@ -808,7 +823,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(

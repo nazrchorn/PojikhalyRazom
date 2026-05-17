@@ -30,7 +30,7 @@ class _PickupDropoffLocationScreenState extends State<PickupDropoffLocationScree
   String? _selectedAddress;
   final bool _isLoading = false;
 
-  final Color primaryTurquoise = const Color(0xFF2F8F7F);
+  final Color primaryTurquoise = const Color(0xFF1F6F66);
 
   @override
   void initState() {
@@ -68,8 +68,8 @@ class _PickupDropoffLocationScreenState extends State<PickupDropoffLocationScree
     return Scaffold(
       appBar: AppBar(
         title: Text(title),
-        backgroundColor: const Color(0xFFF4FBF9),
-        foregroundColor: Colors.black87,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
         elevation: 0,
       ),
       body: Stack(

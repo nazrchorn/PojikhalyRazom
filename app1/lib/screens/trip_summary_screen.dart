@@ -49,7 +49,7 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
 
   String? driverGender;
   List<Map<String, dynamic>> stops = [];
-  final Color _primaryTeal = const Color(0xFF00BFA5);
+  final Color _primaryTeal = const Color(0xFF1F6F66);
   final TripService _tripService = TripService();
   final UserService _userService = UserService();
 
@@ -435,18 +435,51 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
   }
 
   Future<void> _pickDateTime() async {
+    final datePickerScheme = Theme.of(context).colorScheme.copyWith(
+      primary: const Color(0xFF1F6F66),
+      secondary: const Color(0xFF1F6F66),
+    );
     final date = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
       firstDate: DateTime.now(),
       lastDate: DateTime(2030),
-      builder: (context, child) => Theme(data: ThemeData.light().copyWith(colorScheme: ColorScheme.light(primary: _primaryTeal)), child: child!),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: datePickerScheme,
+          datePickerTheme: DatePickerThemeData(
+            headerBackgroundColor: const Color(0xFF1F6F66),
+            headerForegroundColor: Colors.white,
+            todayBorder: BorderSide(color: const Color(0xFF1F6F66)),
+          ),
+        ),
+        child: child!,
+      ),
     );
     if (date != null) {
       if (!mounted) {
         return;
       }
-      final time = await showTimePicker(context: context, initialTime: TimeOfDay.now());
+      final time = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.now(),
+        builder: (context, child) => Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: datePickerScheme,
+            timePickerTheme: const TimePickerThemeData(
+              dialHandColor: Color(0xFF1F6F66),
+              dialBackgroundColor: Color(0xFFEAF7F4),
+              hourMinuteColor: Color(0xFFEAF7F4),
+              hourMinuteTextColor: Color(0xFF1F6F66),
+              dayPeriodColor: Color(0xFFEAF7F4),
+              dayPeriodTextColor: Color(0xFF1F6F66),
+              entryModeIconColor: Color(0xFF1F6F66),
+              helpTextStyle: TextStyle(color: Color(0xFF1F6F66)),
+            ),
+          ),
+          child: child!,
+        ),
+      );
       if (time != null) setState(() => departureTime = DateTime(date.year, date.month, date.day, time.hour, time.minute));
     }
   }

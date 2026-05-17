@@ -13,25 +13,23 @@ class ReviewsListScreen extends StatelessWidget {
     required this.userName,
   });
 
-  final Color primaryTurquoise = const Color(0xFF2F8F7F);
+  final Color primaryTurquoise = const Color(0xFF1F6F66);
   final Color bgTurquoiseLight = const Color(0xFFE8F8F5);
-  final Color accentTurquoiseDark = const Color(0xFF2F8F7F);
-  final Color mintBackground = const Color(0xFFF6FCFA);
-  final Color mintAppBar = const Color(0xFFF4FBF9);
+  final Color accentTurquoiseDark = const Color(0xFF1F6F66);
 
   @override
   Widget build(BuildContext context) {
     final reviewService = ReviewService();
 
     return Scaffold(
-      backgroundColor: mintBackground,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Відгуки'),
         centerTitle: true,
-        backgroundColor: mintAppBar,
-        surfaceTintColor: mintAppBar,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        surfaceTintColor: Theme.of(context).appBarTheme.surfaceTintColor,
         elevation: 0,
-        foregroundColor: Colors.black87,
+        foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: reviewService.getReviewsForUser(userId),
@@ -101,7 +99,7 @@ class ReviewsListScreen extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Theme.of(context).cardColor,
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
@@ -175,7 +173,7 @@ class ReviewsListScreen extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -217,9 +215,9 @@ class ReviewsListScreen extends StatelessWidget {
           // --- Коментар ---
           Text(
             review.comment,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
-              color: Colors.black87,
+              color: Theme.of(context).colorScheme.onSurface,
               height: 1.5,
             ),
           ),

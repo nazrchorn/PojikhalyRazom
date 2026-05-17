@@ -23,13 +23,17 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   bool _isPasswordVisible = false;
   bool _isLoading = false;
 
-  final Color primaryTurquoise = const Color(0xFF2F8F7F);
+  final Color primaryTurquoise = const Color(0xFF1F6F66);
   final Color backgroundDeep = const Color(0xFFF3F8F7);
-  final Color accentTurquoiseDark = const Color(0xFF2F8F7F);
+  final Color accentTurquoiseDark = const Color(0xFF1F6F66);
   final Color accentTurquoiseSoft = const Color(0xFFDDF5F1);
   final Color accentTurquoiseSurface = const Color(0xFFF2FBF8);
 
   Future<void> _selectDate(BuildContext context) async {
+    final pickerScheme = Theme.of(context).colorScheme.copyWith(
+      primary: const Color(0xFF1F6F66),
+      secondary: const Color(0xFF1F6F66),
+    );
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: DateTime(2000),
@@ -38,7 +42,12 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(primary: primaryTurquoise),
+            colorScheme: pickerScheme,
+            datePickerTheme: DatePickerThemeData(
+              headerBackgroundColor: const Color(0xFF1F6F66),
+              headerForegroundColor: Colors.white,
+              todayBorder: BorderSide(color: const Color(0xFF1F6F66)),
+            ),
           ),
           child: child!,
         );
@@ -256,10 +265,10 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       appBar: AppBar(
         title: const Text("Реєстрація", style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
-        backgroundColor: const Color(0xFFF4FBF9),
-        surfaceTintColor: const Color(0xFFF4FBF9),
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        surfaceTintColor: Theme.of(context).appBarTheme.surfaceTintColor,
         elevation: 0,
-        foregroundColor: Colors.black87,
+        foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
       ),
       body: SafeArea(
         child: Form(

@@ -18,7 +18,7 @@ class MessangerScreen extends StatefulWidget {
 }
 
 class _MessangerScreenState extends State<MessangerScreen> {
-  final Color primaryTurquoise = const Color(0xFF2F8F7F);
+  final Color primaryTurquoise = const Color(0xFF1F6F66);
   final ChatService _chatService = ChatService();
 
   Map<String, dynamic> _safeData(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -66,13 +66,13 @@ class _MessangerScreenState extends State<MessangerScreen> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6FCFA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         title: const Text('Чати', style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
-        backgroundColor: const Color(0xFFF4FBF9),
-        surfaceTintColor: const Color(0xFFF4FBF9),
-        foregroundColor: Colors.black87,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        surfaceTintColor: Theme.of(context).appBarTheme.surfaceTintColor,
+        foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
         elevation: 0,
       ),
       body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -154,7 +154,7 @@ class _MessangerScreenState extends State<MessangerScreen> {
                   return Container(
                     margin: const EdgeInsets.only(bottom: 12),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: Theme.of(context).cardColor,
                       borderRadius: BorderRadius.circular(16),
                       boxShadow: const [
                         BoxShadow(
@@ -174,7 +174,7 @@ class _MessangerScreenState extends State<MessangerScreen> {
                         child: (photoUrl == null || photoUrl.isEmpty)
                             ? Icon(
                                 isSystemChat ? Icons.notifications_active_rounded : Icons.person,
-                                color: Colors.black54,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
                               )
                             : null,
                       ),
@@ -580,9 +580,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
-                      color: currentReaction == emoji ? const Color(0xFFE0F7F4) : Colors.white,
+                      color: currentReaction == emoji
+                          ? Theme.of(context).colorScheme.secondaryContainer
+                          : Theme.of(context).cardColor,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFB8DFD7)),
+                      border: Border.all(color: Theme.of(context).dividerColor),
                     ),
                     child: Text(emoji, style: const TextStyle(fontSize: 24)),
                   ),
@@ -614,7 +616,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: Theme.of(context).dividerColor,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -645,10 +647,10 @@ class _ConversationScreenState extends State<ConversationScreen> {
   Widget build(BuildContext context) {
     final bool isSystemChat = widget.partnerId == ChatService.systemChatUserId;
     return Scaffold(
-      backgroundColor: const Color(0xFFF6FCFA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF4FBF9),
-        surfaceTintColor: const Color(0xFFF4FBF9),
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        surfaceTintColor: Theme.of(context).appBarTheme.surfaceTintColor,
         titleSpacing: 0,
         title: GestureDetector(
           behavior: HitTestBehavior.opaque,
@@ -680,7 +682,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                         'Переглянути профіль',
                         style: TextStyle(
                           fontSize: 11,
-                          color: Colors.grey.shade500,
+                          color: Theme.of(context).hintColor,
                         ),
                       ),
                   ],
@@ -757,7 +759,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                           constraints: const BoxConstraints(maxWidth: 290),
                           decoration: BoxDecoration(
-                            color: isMine ? const Color(0xFF2F8F7F) : Colors.white,
+                            color: isMine
+                                ? const Color(0xFF1F6F66)
+                                : Theme.of(context).cardColor,
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Column(
@@ -785,7 +789,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                 Text(
                                   text,
                                   style: TextStyle(
-                                    color: isMine ? Colors.white : Colors.black87,
+                                    color: isMine
+                                        ? Colors.white
+                                        : Theme.of(context).colorScheme.onSurface,
                                     fontSize: 15,
                                   ),
                                 ),
@@ -802,7 +808,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                         style: TextStyle(
                                           fontSize: 10,
                                           fontStyle: FontStyle.italic,
-                                          color: isMine ? Colors.white60 : Colors.black38,
+                                          color: isMine
+                                              ? Colors.white60
+                                              : Theme.of(context).colorScheme.onSurfaceVariant,
                                         ),
                                       ),
                                     ),
@@ -810,7 +818,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                     _formatTime(sentAt),
                                     style: TextStyle(
                                       fontSize: 11,
-                                      color: isMine ? Colors.white70 : Colors.black45,
+                                      color: isMine
+                                          ? Colors.white70
+                                          : Theme.of(context).hintColor,
                                     ),
                                   ),
                                   if (isMine) ...[
@@ -834,14 +844,16 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                       decoration: BoxDecoration(
                                         color: isMine
                                             ? Colors.white.withValues(alpha: 0.2)
-                                            : const Color(0xFFEAF7F4),
+                                            : Theme.of(context).colorScheme.secondaryContainer,
                                         borderRadius: BorderRadius.circular(999),
                                       ),
                                       child: Text(
                                         '${entry.key} ${entry.value}',
                                         style: TextStyle(
                                           fontSize: 11,
-                                          color: isMine ? Colors.white : const Color(0xFF1E6B5E),
+                                          color: isMine
+                                              ? Colors.white
+                                              : Theme.of(context).colorScheme.primary,
                                         ),
                                       ),
                                     );
@@ -865,12 +877,12 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                     decoration: BoxDecoration(
                                       color: isMine
                                           ? Colors.white.withValues(alpha: 0.14)
-                                          : const Color(0xFFEAF7F4),
+                                           : Theme.of(context).colorScheme.secondaryContainer,
                                       borderRadius: BorderRadius.circular(10),
                                       border: Border.all(
                                         color: isMine
                                             ? Colors.white.withValues(alpha: 0.24)
-                                            : const Color(0xFFB8DFD7),
+                                             : Theme.of(context).dividerColor,
                                       ),
                                     ),
                                     child: Row(
@@ -878,7 +890,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                         Icon(
                                           Icons.route_rounded,
                                           size: 16,
-                                          color: isMine ? Colors.white : const Color(0xFF2F8F7F),
+                                           color: isMine
+                                               ? Colors.white
+                                               : Theme.of(context).colorScheme.primary,
                                         ),
                                         const SizedBox(width: 8),
                                         Expanded(
@@ -892,7 +906,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                                   style: TextStyle(
                                                     fontSize: 12,
                                                     fontWeight: FontWeight.w600,
-                                                    color: isMine ? Colors.white : Colors.black87,
+                                                    color: isMine
+                                                        ? Colors.white
+                                                        : Theme.of(context).colorScheme.onSurface,
                                                   ),
                                                 )
                                               : tripId.isEmpty
@@ -903,7 +919,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                                   style: TextStyle(
                                                     fontSize: 12,
                                                     fontWeight: FontWeight.w600,
-                                                    color: isMine ? Colors.white : Colors.black87,
+                                                    color: isMine
+                                                        ? Colors.white
+                                                        : Theme.of(context).colorScheme.onSurface,
                                                   ),
                                                 )
                                               : FutureBuilder<Trip?>(
@@ -920,7 +938,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                                       style: TextStyle(
                                                         fontSize: 12,
                                                         fontWeight: FontWeight.w600,
-                                                        color: isMine ? Colors.white : Colors.black87,
+                                                        color: isMine
+                                                            ? Colors.white
+                                                            : Theme.of(context)
+                                                                .colorScheme
+                                                                .onSurface,
                                                       ),
                                                     );
                                                   },
@@ -929,7 +951,9 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                         Icon(
                                           Icons.open_in_new_rounded,
                                           size: 15,
-                                          color: isMine ? Colors.white70 : const Color(0xFF2F8F7F),
+                                          color: isMine
+                                              ? Colors.white70
+                                              : Theme.of(context).colorScheme.primary,
                                         ),
                                       ],
                                     ),
@@ -951,7 +975,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
             SafeArea(
               top: false,
               child: Container(
-                color: Colors.white,
+                color: Theme.of(context).cardColor,
                 padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -961,12 +985,12 @@ class _ConversationScreenState extends State<ConversationScreen> {
                         margin: const EdgeInsets.only(bottom: 6),
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFE0F7F4),
+                          color: Theme.of(context).colorScheme.secondaryContainer,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF2F8F7F)),
+                            const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF1F6F66)),
                             const SizedBox(width: 8),
                             const Expanded(
                               child: Text(
@@ -1008,7 +1032,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                   ? 'Вiдредагуйте повiдомлення...'
                                   : 'Ваше повiдомлення...',
                               filled: true,
-                              fillColor: const Color(0xFFF1F3F5),
+                              fillColor: Theme.of(context).inputDecorationTheme.fillColor,
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(22),
                                 borderSide: BorderSide.none,
@@ -1026,7 +1050,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                             style: ElevatedButton.styleFrom(
                               padding: EdgeInsets.zero,
                               shape: const CircleBorder(),
-                              backgroundColor: const Color(0xFF2F8F7F),
+                              backgroundColor: Theme.of(context).colorScheme.primary,
                               elevation: 0,
                             ),
                             child: Icon(
@@ -1047,7 +1071,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
             SafeArea(
               top: false,
               child: Container(
-                color: Colors.white,
+                color: Theme.of(context).cardColor,
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: const Text(
