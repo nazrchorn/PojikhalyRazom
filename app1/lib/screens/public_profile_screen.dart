@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
 import 'package:image_picker/image_picker.dart';
@@ -749,7 +750,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)],
         ),
-        child: StreamBuilder<dynamic>(
+        child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
           stream: _reviewService.getReviewsForUser(widget.userId),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
@@ -763,11 +764,21 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
               );
             }
 
-            final docs = snapshot.data?.docs as List<dynamic>? ?? <dynamic>[];
-            final sortedDocs = [...docs]..sort((a, b) {
-              final aDate = (a.data()['createdAt'] as dynamic)?.toDate?.call() ?? DateTime.fromMillisecondsSinceEpoch(0);
-              final bDate = (b.data()['createdAt'] as dynamic)?.toDate?.call() ?? DateTime.fromMillisecondsSinceEpoch(0);
-              return (bDate as DateTime).compareTo(aDate as DateTime);
+            final docs = snapshot.data?.docs ?? const <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+            final sortedDocs = <QueryDocumentSnapshot<Map<String, dynamic>>>[...docs]..sort((a, b) {
+              DateTime parseDate(dynamic value) {
+                if (value is Timestamp) return value.toDate();
+                if (value is DateTime) return value;
+                if (value is num) return DateTime.fromMillisecondsSinceEpoch(value.toInt());
+                final asString = value?.toString();
+                return DateTime.tryParse(asString ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+              }
+
+              final aCreatedRaw = a.data()['createdAt'];
+              final bCreatedRaw = b.data()['createdAt'];
+              final aDate = parseDate(aCreatedRaw);
+              final bDate = parseDate(bCreatedRaw);
+              return bDate.compareTo(aDate);
             });
 
             if (sortedDocs.isEmpty) {
@@ -788,7 +799,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                 _buildReviewsHeader(),
                 const SizedBox(height: 12),
                 ...top.map((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
+                  final data = doc.data();
                   final int r = (data['rating'] as num?)?.toInt() ?? 5;
                   final String comment = (data['comment'] as String?)?.trim().isNotEmpty == true
                       ? data['comment'] as String

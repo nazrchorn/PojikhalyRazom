@@ -71,7 +71,9 @@ class _DepartureSearchScreenState extends State<DepartureSearchScreen> {
               decoration: InputDecoration(
                 hintText: "Вулиця, номер будинку або місто...",
                 prefixIcon: const Icon(Icons.location_on, color: Color(0xFF2F8F7F)),
-                suffixIcon: _isLoading ? const Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2)) : null,
+                suffixIcon: _isLoading
+                    ? const Padding(padding: EdgeInsets.all(12), child: CircularProgressIndicator(strokeWidth: 2))
+                    : null,
                 filled: true,
                 fillColor: Colors.grey.shade100,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),

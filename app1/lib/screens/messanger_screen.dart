@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import '../models/trip.dart';
 import '../services/chat_service.dart';
 import '../services/trip_service.dart';
+import 'driver_booking_request_screen.dart';
+import 'public_profile_screen.dart';
 import 'trip_details_screen.dart';
 
 class MessangerScreen extends StatefulWidget {
@@ -116,7 +120,13 @@ class _MessangerScreenState extends State<MessangerScreen> {
           }
 
           final previews = previewsByUser.values.toList()
-            ..sort((a, b) => b.sentAt.compareTo(a.sentAt));
+            ..sort((a, b) {
+              final aSystem = a.partnerId == ChatService.systemChatUserId;
+              final bSystem = b.partnerId == ChatService.systemChatUserId;
+              if (aSystem && !bSystem) return -1;
+              if (!aSystem && bSystem) return 1;
+              return b.sentAt.compareTo(a.sentAt);
+            });
 
           if (previews.isEmpty) {
             return const Center(
@@ -282,9 +292,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
   final ScrollController _scrollController = ScrollController();
   final ChatService _chatService = ChatService();
   final TripService _tripService = TripService();
+  final ImagePicker _picker = ImagePicker();
 
   // Non-null when user is editing an existing message
   String? _editingDocId;
+  bool _sendingImage = false;
 
   @override
   void dispose() {
@@ -314,6 +326,45 @@ class _ConversationScreenState extends State<ConversationScreen> {
   String _safeTripId(Map<String, dynamic> data) {
     final value = data['tripId'];
     return value is String ? value : '';
+  }
+
+  String _safeType(Map<String, dynamic> data) {
+    final value = data['type'];
+    return value is String ? value : '';
+  }
+
+  String _safeImageUrl(Map<String, dynamic> data) {
+    final value = data['imageUrl'];
+    return value is String ? value : '';
+  }
+
+  Map<String, dynamic> _safeMetadata(Map<String, dynamic> data) {
+    final value = data['metadata'];
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return const <String, dynamic>{};
+  }
+
+  Map<String, String> _safeReactions(Map<String, dynamic> data) {
+    final value = data['reactions'];
+    if (value is Map<String, dynamic>) {
+      return value.map((k, v) => MapEntry(k, v?.toString() ?? ''));
+    }
+    if (value is Map) {
+      return Map<String, String>.fromEntries(
+        value.entries.map((e) => MapEntry(e.key.toString(), e.value?.toString() ?? '')),
+      );
+    }
+    return const <String, String>{};
+  }
+
+  Map<String, int> _summarizeReactions(Map<String, String> reactions) {
+    final counts = <String, int>{};
+    for (final emoji in reactions.values) {
+      if (emoji.trim().isEmpty) continue;
+      counts.update(emoji, (v) => v + 1, ifAbsent: () => 1);
+    }
+    return counts;
   }
 
   String _formatTime(DateTime date) {
@@ -357,10 +408,45 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
     if (!_scrollController.hasClients) return;
     _scrollController.animateTo(
-      _scrollController.position.maxScrollExtent + 120,
+      0,
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeOut,
     );
+  }
+
+  Future<void> _pickAndSendImage() async {
+    if (_sendingImage) return;
+
+    final picked = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 88,
+      maxWidth: 2200,
+      maxHeight: 2200,
+    );
+    if (picked == null) return;
+
+    final caption = _messageController.text.trim();
+    _messageController.clear();
+
+    if (!mounted) return;
+    setState(() => _sendingImage = true);
+    try {
+      await _chatService.sendImageMessage(
+        currentUserId: widget.currentUserId,
+        receiverId: widget.partnerId,
+        imageFile: File(picked.path),
+        text: caption,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Не вдалося відправити фото: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _sendingImage = false);
+      }
+    }
   }
 
   void _startEdit(String docId, String currentText) {
@@ -424,6 +510,90 @@ class _ConversationScreenState extends State<ConversationScreen> {
     );
   }
 
+  Future<void> _openBookingRequestFromMessage(String requestId) async {
+    if (requestId.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ID запиту не знайдено')),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DriverBookingRequestScreen(requestId: requestId),
+      ),
+    );
+  }
+
+  Future<void> _openPartnerProfile() async {
+    if (widget.partnerId == ChatService.systemChatUserId) return;
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PublicProfileScreen(
+          userId: widget.partnerId,
+          isMyProfile: widget.currentUserId == widget.partnerId,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showReactionPicker({
+    required BuildContext context,
+    required String docId,
+    required String currentReaction,
+  }) async {
+    const reactions = <String>['👍', '❤️', '🔥', '😂', '😮', '😢'];
+    await showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+          child: Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              for (final emoji in reactions)
+                GestureDetector(
+                  onTap: () async {
+                    Navigator.pop(context);
+                    if (currentReaction == emoji) {
+                      await _chatService.clearMessageReaction(
+                        docId: docId,
+                        userId: widget.currentUserId,
+                      );
+                    } else {
+                      await _chatService.setMessageReaction(
+                        docId: docId,
+                        userId: widget.currentUserId,
+                        emoji: emoji,
+                      );
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: currentReaction == emoji ? const Color(0xFFE0F7F4) : Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFB8DFD7)),
+                    ),
+                    child: Text(emoji, style: const TextStyle(fontSize: 24)),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
 
   void _showMessageOptions(
     BuildContext ctx,
@@ -480,26 +650,44 @@ class _ConversationScreenState extends State<ConversationScreen> {
         backgroundColor: const Color(0xFFF4FBF9),
         surfaceTintColor: const Color(0xFFF4FBF9),
         titleSpacing: 0,
-        title: Row(
-          children: [
-            CircleAvatar(
-              radius: 16,
-              backgroundImage: (widget.partnerPhotoUrl != null && widget.partnerPhotoUrl!.isNotEmpty)
-                  ? NetworkImage(widget.partnerPhotoUrl!)
-                  : null,
-              child: (widget.partnerPhotoUrl == null || widget.partnerPhotoUrl!.isEmpty)
-                  ? const Icon(Icons.person, size: 18)
-                  : null,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                widget.partnerName,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.bold),
+        title: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: isSystemChat ? null : _openPartnerProfile,
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundImage: (widget.partnerPhotoUrl != null && widget.partnerPhotoUrl!.isNotEmpty)
+                    ? NetworkImage(widget.partnerPhotoUrl!)
+                    : null,
+                child: (widget.partnerPhotoUrl == null || widget.partnerPhotoUrl!.isEmpty)
+                    ? const Icon(Icons.person, size: 18)
+                    : null,
               ),
-            ),
-          ],
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      widget.partnerName,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    if (!isSystemChat)
+                      Text(
+                        'Переглянути профіль',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
       body: Column(
@@ -516,7 +704,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                   ..sort((a, b) {
                     final aDate = _safeSentAt(a.data());
                     final bDate = _safeSentAt(b.data());
-                    return aDate.compareTo(bDate);
+                    return bDate.compareTo(aDate);
                   });
 
                 if (docs.isEmpty) {
@@ -529,6 +717,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
 
                 return ListView.builder(
                   controller: _scrollController,
+                  reverse: true,
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
@@ -541,6 +730,16 @@ class _ConversationScreenState extends State<ConversationScreen> {
                     final isRead = _safeIsRead(data);
                     final isEdited = data['editedAt'] != null;
                     final tripId = _safeTripId(data);
+                    final messageType = _safeType(data);
+                    final metadata = _safeMetadata(data);
+                    final imageUrl = _safeImageUrl(data);
+                    final reactions = _safeReactions(data);
+                    final myReaction = reactions[widget.currentUserId] ?? '';
+                    final reactionSummary = _summarizeReactions(reactions);
+                    final bookingRequestId =
+                        (metadata['bookingRequestId'] ?? '').toString().trim();
+                    final bool hasBookingAction =
+                        bookingRequestId.isNotEmpty || messageType.startsWith('booking_request');
 
                     return Align(
                       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
@@ -548,6 +747,11 @@ class _ConversationScreenState extends State<ConversationScreen> {
                         onLongPress: isMine
                             ? () => _showMessageOptions(context, docId, text)
                             : null,
+                        onDoubleTap: () => _showReactionPicker(
+                          context: context,
+                          docId: docId,
+                          currentReaction: myReaction,
+                        ),
                         child: Container(
                           margin: const EdgeInsets.symmetric(vertical: 4),
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -559,13 +763,33 @@ class _ConversationScreenState extends State<ConversationScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              Text(
-                                text,
-                                style: TextStyle(
-                                  color: isMine ? Colors.white : Colors.black87,
-                                  fontSize: 15,
+                              if (imageUrl.isNotEmpty)
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.network(
+                                    imageUrl,
+                                    width: 230,
+                                    fit: BoxFit.cover,
+                                    loadingBuilder: (context, child, progress) {
+                                      if (progress == null) return child;
+                                      return const SizedBox(
+                                        width: 230,
+                                        height: 140,
+                                        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                                      );
+                                    },
+                                  ),
                                 ),
-                              ),
+                              if (text.isNotEmpty) ...[
+                                if (imageUrl.isNotEmpty) const SizedBox(height: 8),
+                                Text(
+                                  text,
+                                  style: TextStyle(
+                                    color: isMine ? Colors.white : Colors.black87,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ],
                               const SizedBox(height: 4),
                               Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -599,10 +823,41 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                   ],
                                 ],
                               ),
+                              if (reactionSummary.isNotEmpty) ...[
+                                const SizedBox(height: 7),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: reactionSummary.entries.map((entry) {
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: isMine
+                                            ? Colors.white.withValues(alpha: 0.2)
+                                            : const Color(0xFFEAF7F4),
+                                        borderRadius: BorderRadius.circular(999),
+                                      ),
+                                      child: Text(
+                                        '${entry.key} ${entry.value}',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: isMine ? Colors.white : const Color(0xFF1E6B5E),
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ],
                               if (isSystemChat) ...[
                                 const SizedBox(height: 8),
                                 InkWell(
-                                  onTap: () => _openTripFromMessage(tripId),
+                                  onTap: () {
+                                    if (hasBookingAction && bookingRequestId.isNotEmpty) {
+                                      _openBookingRequestFromMessage(bookingRequestId);
+                                      return;
+                                    }
+                                    _openTripFromMessage(tripId);
+                                  },
                                   borderRadius: BorderRadius.circular(10),
                                   child: Container(
                                     width: double.infinity,
@@ -627,7 +882,20 @@ class _ConversationScreenState extends State<ConversationScreen> {
                                         ),
                                         const SizedBox(width: 8),
                                         Expanded(
-                                          child: tripId.isEmpty
+                                          child: hasBookingAction
+                                              ? Text(
+                                                  bookingRequestId.isEmpty
+                                                      ? 'Переглянути запит бронювання'
+                                                      : 'Відкрити запит на бронювання',
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: isMine ? Colors.white : Colors.black87,
+                                                  ),
+                                                )
+                                              : tripId.isEmpty
                                               ? Text(
                                                   'Поїздка не вказана',
                                                   maxLines: 1,
@@ -715,6 +983,21 @@ class _ConversationScreenState extends State<ConversationScreen> {
                       ),
                     Row(
                       children: [
+                        if (_sendingImage)
+                          const Padding(
+                            padding: EdgeInsets.only(right: 8),
+                            child: SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        else
+                          IconButton(
+                            tooltip: 'Фото',
+                            onPressed: _pickAndSendImage,
+                            icon: const Icon(Icons.photo_library_outlined),
+                          ),
                         Expanded(
                           child: TextField(
                             controller: _messageController,
@@ -739,7 +1022,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                           height: 44,
                           width: 44,
                           child: ElevatedButton(
-                            onPressed: _sendMessage,
+                            onPressed: _sendingImage ? null : _sendMessage,
                             style: ElevatedButton.styleFrom(
                               padding: EdgeInsets.zero,
                               shape: const CircleBorder(),

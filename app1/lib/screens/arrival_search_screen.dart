@@ -41,7 +41,6 @@ class _ArrivalSearchScreenState extends State<ArrivalSearchScreen> {
 
   void _onChanged(String val) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
-    // Затримка 800мс, щоб не викликати помилку сервера 503
     _debounce = Timer(const Duration(milliseconds: 800), () => _searchAddress(val));
   }
 
@@ -76,16 +75,14 @@ class _ArrivalSearchScreenState extends State<ArrivalSearchScreen> {
                 prefixIcon: Icon(Icons.flag_rounded, color: primaryTurquoise),
                 suffixIcon: _isLoading
                     ? const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: CircularProgressIndicator(strokeWidth: 2)
-                )
+                        padding: EdgeInsets.all(12),
+                        child: CircularProgressIndicator(strokeWidth: 2))
                     : null,
                 filled: true,
                 fillColor: Colors.grey.shade100,
                 border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none
-                ),
+                    borderSide: BorderSide.none),
               ),
             ),
           ),
@@ -93,25 +90,25 @@ class _ArrivalSearchScreenState extends State<ArrivalSearchScreen> {
             child: suggestions.isEmpty && _controller.text.length >= 2 && !_isLoading
                 ? const Center(child: Text("Місце не знайдено"))
                 : ListView.separated(
-              itemCount: suggestions.length,
-              separatorBuilder: (context, index) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final s = suggestions[index];
-                return ListTile(
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: primaryTurquoise.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(Icons.sports_score, color: primaryTurquoise, size: 20),
+                    itemCount: suggestions.length,
+                    separatorBuilder: (context, index) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final s = suggestions[index];
+                      return ListTile(
+                        leading: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: primaryTurquoise.withValues(alpha: 0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(Icons.sports_score, color: primaryTurquoise, size: 20),
+                        ),
+                        title: Text(s['address'], maxLines: 2, overflow: TextOverflow.ellipsis),
+                        subtitle: Text(s['city']),
+                        onTap: () => Navigator.pop(context, s),
+                      );
+                    },
                   ),
-                  title: Text(s['address'], maxLines: 2, overflow: TextOverflow.ellipsis),
-                  subtitle: Text(s['city']),
-                  onTap: () => Navigator.pop(context, s),
-                );
-              },
-            ),
           ),
         ],
       ),

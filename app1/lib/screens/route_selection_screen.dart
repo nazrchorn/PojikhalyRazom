@@ -23,101 +23,197 @@ class RouteSelectionScreen extends StatefulWidget {
 class _RouteSelectionScreenState extends State<RouteSelectionScreen> {
   final MapController _mapController = MapController();
   final RouteService _routeService = RouteService();
-  List<Map<String, dynamic>> routes = [];
-  int? selectedRouteIndex;
 
-  Future<void> _fetchRoutes() async {
+  static const Color _primaryTurquoise = Color(0xFF2F8F7F);
+
+  static const List<Color> _routeColors = [
+    Color(0xFF2F8F7F),
+    Color(0xFF1565C0),
+    Color(0xFFE65100),
+  ];
+
+  List<Map<String, dynamic>> _routes = [];
+  int _selectedRouteIndex = 0;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRoutes();
+  }
+
+  Future<void> _loadRoutes() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+    });
+
+    final originLatLng = LatLng(
+      (widget.origin['lat'] as num).toDouble(),
+      (widget.origin['lng'] as num).toDouble(),
+    );
+    final destLatLng = LatLng(
+      (widget.destination['lat'] as num).toDouble(),
+      (widget.destination['lng'] as num).toDouble(),
+    );
+
+    // Step 1: load single route fast so map is never empty
+    Map<String, dynamic>? single;
     try {
-      final newRoutes = await _routeService.fetchAlternativeRoutes(
+      single = await _routeService.fetchRouteWithWaypoints(
+        waypoints: [originLatLng, destLatLng],
+        apiKey: widget.apiKey,
+      );
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    if (single == null) {
+      // Keep loading — just retry silently after 3 seconds
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) _loadRoutes();
+      });
+      return;
+    }
+
+    setState(() {
+      _routes = [single!];
+      _selectedRouteIndex = 0;
+      _isLoading = false;
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _fitRoute(_routes[0]);
+    });
+
+    // Step 2: try to get alternatives silently in background
+    try {
+      final alts = await _routeService.fetchAlternativeRoutes(
         origin: widget.origin,
         destination: widget.destination,
         apiKey: widget.apiKey,
+        targetCount: 3,
       );
-
-      if (!mounted) return;
-
-      if (newRoutes.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Маршрутів не знайдено")),
-        );
-        return;
+      if (mounted && alts.length > 1) {
+        setState(() {
+          _routes = alts;
+          _selectedRouteIndex = 0;
+        });
       }
-
-      setState(() {
-        routes = newRoutes;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Виняток: $e")),
-      );
+    } catch (_) {
+      // Silently keep the single route already shown
     }
   }
 
-  void _confirmRoute() {
-    if (selectedRouteIndex == null) return;
+  void _fitRoute(Map<String, dynamic> route) {
+    final points = route['polyline'] as List<LatLng>;
+    if (points.isEmpty) return;
+    double minLat = points.first.latitude, maxLat = points.first.latitude;
+    double minLng = points.first.longitude, maxLng = points.first.longitude;
+    for (final p in points) {
+      if (p.latitude < minLat) minLat = p.latitude;
+      if (p.latitude > maxLat) maxLat = p.latitude;
+      if (p.longitude < minLng) minLng = p.longitude;
+      if (p.longitude > maxLng) maxLng = p.longitude;
+    }
+    try {
+      _mapController.fitCamera(CameraFit.bounds(
+        bounds: LatLngBounds(LatLng(minLat, minLng), LatLng(maxLat, maxLng)),
+        padding: const EdgeInsets.fromLTRB(40, 80, 40, 280),
+      ));
+    } catch (_) {}
+  }
+
+  void _selectRoute(int idx) {
+    setState(() => _selectedRouteIndex = idx);
+    _fitRoute(_routes[idx]);
+  }
+
+  void _confirm() {
+    if (_routes.isEmpty) return;
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => StopSelectionScreen(
           origin: widget.origin,
           destination: widget.destination,
-          selectedRoute: routes[selectedRouteIndex!],
+          selectedRoute: _routes[_selectedRouteIndex],
           apiKey: widget.apiKey,
         ),
       ),
     );
   }
 
-
-
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchRoutes();
+  String _fmtDuration(double s) {
+    final m = (s / 60).round();
+    if (m < 60) return '$m хв';
+    final h = m ~/ 60, rem = m % 60;
+    return rem == 0 ? '$h год' : '$h год $rem хв';
   }
+
+  String _fmtDistance(double m) =>
+      m < 1000 ? '${m.round()} м' : '${(m / 1000).toStringAsFixed(1)} км';
 
   @override
   Widget build(BuildContext context) {
+    final originPt = LatLng(
+      (widget.origin['lat'] as num).toDouble(),
+      (widget.origin['lng'] as num).toDouble(),
+    );
+    final destPt = LatLng(
+      (widget.destination['lat'] as num).toDouble(),
+      (widget.destination['lng'] as num).toDouble(),
+    );
+
     return Scaffold(
-      appBar: AppBar(title: const Text("Вибір маршруту")),
+      backgroundColor: const Color(0xFFF6FCFA),
+      appBar: AppBar(
+        title: const Text('Вибір маршруту',
+            style: TextStyle(fontWeight: FontWeight.bold)),
+        centerTitle: true,
+        backgroundColor: const Color(0xFFF4FBF9),
+        surfaceTintColor: const Color(0xFFF4FBF9),
+        elevation: 0,
+        foregroundColor: Colors.black87,
+      ),
       body: Stack(
         children: [
+          // MAP
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: LatLng(widget.origin['lat'], widget.origin['lng']),
+              initialCenter: originPt,
               initialZoom: 7,
             ),
             children: [
               TileLayer(
-                urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                urlTemplate:
+                    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.example.pojikhaly_razom',
               ),
-              if (routes.isNotEmpty)
+              if (_routes.isNotEmpty)
                 PolylineLayer(
-                  polylines: routes.asMap().entries.map((entry) {
-                    final idx = entry.key;
-                    final r = entry.value;
+                  polylines: _routes.asMap().entries.map((e) {
+                    final selected = e.key == _selectedRouteIndex;
+                    final color = _routeColors[e.key % _routeColors.length];
                     return Polyline(
-                      points: r['polyline'],
-                      strokeWidth: 4,
-                      color: selectedRouteIndex == idx ? Colors.blue : Colors.grey,
+                      points: e.value['polyline'] as List<LatLng>,
+                      strokeWidth: selected ? 5 : 3,
+                      color: selected ? color : color.withValues(alpha: 0.35),
                     );
                   }).toList(),
                 ),
               MarkerLayer(
                 markers: [
                   Marker(
-                    point: LatLng(widget.origin['lat'], widget.origin['lng']),
+                    point: originPt,
                     width: 40,
                     height: 40,
                     child: const Icon(Icons.location_on,
-                        color: Colors.green, size: 40),
+                        color: Color(0xFF2F8F7F), size: 40),
                   ),
                   Marker(
-                    point: LatLng(widget.destination['lat'], widget.destination['lng']),
+                    point: destPt,
                     width: 40,
                     height: 40,
                     child: const Icon(Icons.location_on,
@@ -127,65 +223,116 @@ class _RouteSelectionScreenState extends State<RouteSelectionScreen> {
               ),
             ],
           ),
-          if (routes.isNotEmpty)
+
+          // LOADING spinner (small, non-blocking)
+          if (_isLoading)
+            const Positioned(
+              top: 16,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.all(Radius.circular(24))),
+                  child: Padding(
+                    padding:
+                        EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF2F8F7F)),
+                        ),
+                        SizedBox(width: 10),
+                        Text('Завантаження маршруту…'),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+
+          // ROUTE LIST + CONFIRM
+          if (!_isLoading && _routes.isNotEmpty)
             Positioned(
               bottom: 0,
               left: 0,
               right: 0,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                    topRight: Radius.circular(16),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 6,
-                      offset: const Offset(0, -2),
-                    ),
-                  ],
-                ),
+              child: _Sheet(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    ...routes.asMap().entries.map((entry) {
-                      final idx = entry.key;
-                      final r = entry.value;
-                      final durationMin = (r['duration'] / 60).round();
-                      final distanceKm = (r['distance'] / 1000).toStringAsFixed(1);
-                      return ListTile(
-                        title: Text(
-                          "Маршрут ${idx + 1}",
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+                    if (_routes.length > 1)
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text('Оберіть маршрут',
+                              style: TextStyle(
+                                  fontSize: 15, fontWeight: FontWeight.bold)),
                         ),
-                        subtitle: Text(
-                          "$durationMin хв • $distanceKm км",
-                          style: const TextStyle(fontSize: 16),
+                      ),
+                    if (_routes.length > 1)
+                      ..._routes.asMap().entries.map((e) {
+                        final idx = e.key;
+                        final r = e.value;
+                        final selected = idx == _selectedRouteIndex;
+                        final color =
+                            _routeColors[idx % _routeColors.length];
+                        return _RouteCard(
+                          label: idx == 0
+                              ? 'Найшвидший'
+                              : idx == 1
+                                  ? 'Альтернативний'
+                                  : 'Ще варіант',
+                          duration:
+                              _fmtDuration((r['duration'] as num).toDouble()),
+                          distance:
+                              _fmtDistance((r['distance'] as num).toDouble()),
+                          color: color,
+                          selected: selected,
+                          onTap: () => _selectRoute(idx),
+                        );
+                      }),
+                    if (_routes.length == 1)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.route,
+                                color: _primaryTurquoise, size: 22),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${_fmtDuration((_routes[0]['duration'] as num).toDouble())} • ${_fmtDistance((_routes[0]['distance'] as num).toDouble())}',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600, fontSize: 15),
+                            ),
+                          ],
                         ),
-                        trailing: selectedRouteIndex == idx
-                            ? const Icon(Icons.check_circle, color: Colors.green)
-                            : null,
-                        onTap: () {
-                          setState(() => selectedRouteIndex = idx);
-
-                        },
-                      );
-                    }),
+                      ),
                     Padding(
-                      padding: const EdgeInsets.all(12.0),
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                       child: SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: selectedRouteIndex != null ? _confirmRoute : null,
-                          child: const Text(
-                            "Підтвердити маршрут",
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          onPressed: _confirm,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _primaryTurquoise,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size.fromHeight(48),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14)),
+                            elevation: 0,
                           ),
+                          child: const Text('Підтвердити маршрут',
+                              style: TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ),
@@ -197,4 +344,93 @@ class _RouteSelectionScreenState extends State<RouteSelectionScreen> {
       ),
     );
   }
+}
+
+class _Sheet extends StatelessWidget {
+  final Widget child;
+  const _Sheet({required this.child});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius:
+              const BorderRadius.vertical(top: Radius.circular(20)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.12),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: SafeArea(top: false, child: child),
+      );
+}
+
+class _RouteCard extends StatelessWidget {
+  final String label;
+  final String duration;
+  final String distance;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _RouteCard({
+    required this.label,
+    required this.duration,
+    required this.distance,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? color.withValues(alpha: 0.08) : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+                color: selected ? color : Colors.grey.shade200,
+                width: selected ? 2 : 1),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 10,
+                height: 34,
+                decoration: BoxDecoration(
+                    color: color, borderRadius: BorderRadius.circular(5)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label,
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: selected ? color : Colors.black87)),
+                    Text('$duration • $distance',
+                        style: TextStyle(
+                            color: Colors.grey.shade600, fontSize: 13)),
+                  ],
+                ),
+              ),
+              Icon(
+                selected
+                    ? Icons.check_circle_rounded
+                    : Icons.radio_button_unchecked_rounded,
+                color: selected ? color : Colors.grey.shade400,
+                size: 22,
+              ),
+            ],
+          ),
+        ),
+      );
 }

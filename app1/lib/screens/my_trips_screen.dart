@@ -34,6 +34,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
   bool _reviewFlowActive = false;
   bool _reviewPromptInProgress = false;
   bool _reviewPromptPrefsLoaded = false;
+  bool _reviewPromptDismissedForever = false;
 
   final Color primaryTurquoise = const Color(0xFF2F8F7F);
 
@@ -57,12 +58,14 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
 
     try {
       final dismissed = await _userService.loadDismissedReviewPromptTripIds(currentUserId);
+      final dismissedForever = await _userService.loadIsReviewPromptDismissedForever(currentUserId);
       if (!mounted) return;
 
       setState(() {
         _dismissedReviewPromptTrips
           ..clear()
           ..addAll(dismissed);
+        _reviewPromptDismissedForever = dismissedForever;
         _reviewPromptPrefsLoaded = true;
       });
     } catch (_) {
@@ -82,6 +85,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
   Future<void> _maybePromptForReviews(List<Trip> trips, String currentUserId) async {
     if (
         !_reviewPromptPrefsLoaded ||
+        _reviewPromptDismissedForever ||
         _reviewFlowActive ||
         _reviewPromptInProgress ||
         currentUserId.isEmpty
@@ -150,10 +154,12 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
 
       if (startReviews != true) {
         _dismissedReviewPromptTrips.add(candidate.id);
+        _reviewPromptDismissedForever = true;
         await _userService.dismissReviewPromptForever(
           userId: currentUserId,
           tripId: candidate.id,
         );
+        await _userService.dismissAllReviewPromptsForever(currentUserId);
         return;
       }
 

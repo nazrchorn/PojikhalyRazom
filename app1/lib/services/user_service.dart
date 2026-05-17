@@ -8,6 +8,7 @@ class UserService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
   static const String _dismissedReviewPromptsField = 'dismissedReviewPromptTripIds';
+  static const String _dismissReviewPromptsForeverField = 'dismissReviewPromptsForever';
 
   Future<Map<String, dynamic>?> loadUserData(String userId) async {
     final doc = await _firestore.collection('users').doc(userId).get();
@@ -50,6 +51,20 @@ class UserService {
     if (userId.trim().isEmpty || tripId.trim().isEmpty) return;
     await _firestore.collection('users').doc(userId).set({
       _dismissedReviewPromptsField: FieldValue.arrayUnion([tripId]),
+    }, SetOptions(merge: true));
+  }
+
+  Future<bool> loadIsReviewPromptDismissedForever(String userId) async {
+    if (userId.trim().isEmpty) return false;
+    final doc = await _firestore.collection('users').doc(userId).get();
+    final data = doc.data() ?? <String, dynamic>{};
+    return data[_dismissReviewPromptsForeverField] == true;
+  }
+
+  Future<void> dismissAllReviewPromptsForever(String userId) async {
+    if (userId.trim().isEmpty) return;
+    await _firestore.collection('users').doc(userId).set({
+      _dismissReviewPromptsForeverField: true,
     }, SetOptions(merge: true));
   }
 

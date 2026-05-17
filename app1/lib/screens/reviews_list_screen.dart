@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/review.dart';
 import '../services/review_service.dart';
 
@@ -32,7 +33,7 @@ class ReviewsListScreen extends StatelessWidget {
         elevation: 0,
         foregroundColor: Colors.black87,
       ),
-      body: StreamBuilder<dynamic>(
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
         stream: reviewService.getReviewsForUser(userId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -82,7 +83,7 @@ class ReviewsListScreen extends StatelessWidget {
           }
 
           final reviews = snapshot.data!.docs
-              .map((doc) => Review.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+              .map((doc) => Review.fromMap(doc.data(), doc.id))
               .toList()
             ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 

@@ -1,7 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:path/path.dart' as p;
+import 'dart:io';
 
 class ChatService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
   static const String systemChatUserId = 'poikhali_system';
   static const String systemChatName = 'Поїхали Разом';
 
@@ -57,6 +61,32 @@ class ChatService {
     });
   }
 
+  Future<void> sendImageMessage({
+    required String currentUserId,
+    required String receiverId,
+    required File imageFile,
+    String text = '',
+    String tripId = '',
+  }) async {
+    final extension = p.extension(imageFile.path).toLowerCase();
+    final safeExt = extension.isEmpty ? '.jpg' : extension;
+    final fileName = '${DateTime.now().millisecondsSinceEpoch}_$currentUserId$safeExt';
+    final ref = _storage.ref().child('chat_images').child(currentUserId).child(fileName);
+
+    await ref.putFile(imageFile, SettableMetadata(contentType: 'image/jpeg'));
+    final imageUrl = await ref.getDownloadURL();
+
+    await _firestore.collection('messages').add({
+      'tripId': tripId,
+      'senderId': currentUserId,
+      'receiverId': receiverId,
+      'text': text,
+      'imageUrl': imageUrl,
+      'sentAt': FieldValue.serverTimestamp(),
+      'isRead': false,
+    });
+  }
+
   Future<void> sendSystemMessage({
     required String receiverId,
     required String text,
@@ -88,6 +118,25 @@ class ChatService {
   /// Видалити повідомлення
   Future<void> deleteMessage(String docId) async {
     await _firestore.collection('messages').doc(docId).delete();
+  }
+
+  Future<void> setMessageReaction({
+    required String docId,
+    required String userId,
+    required String emoji,
+  }) async {
+    await _firestore.collection('messages').doc(docId).set({
+      'reactions': <String, dynamic>{userId: emoji},
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> clearMessageReaction({
+    required String docId,
+    required String userId,
+  }) async {
+    await _firestore.collection('messages').doc(docId).update({
+      'reactions.$userId': FieldValue.delete(),
+    });
   }
 
   /// Позначити вхідні повідомлення як прочитані
