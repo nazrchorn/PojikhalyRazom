@@ -19,6 +19,7 @@ class MessangerScreen extends StatefulWidget {
 
 class _MessangerScreenState extends State<MessangerScreen> {
   final Color primaryTurquoise = const Color(0xFF1F6F66);
+  final Color systemGreen = const Color(0xFF2E7D32);
   final ChatService _chatService = ChatService();
 
   Map<String, dynamic> _safeData(DocumentSnapshot<Map<String, dynamic>> doc) {
@@ -167,7 +168,9 @@ class _MessangerScreenState extends State<MessangerScreen> {
                     child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       leading: CircleAvatar(
-                        backgroundColor: primaryTurquoise.withValues(alpha: 0.15),
+                        backgroundColor: isSystemChat
+                            ? systemGreen.withValues(alpha: 0.15)
+                            : primaryTurquoise.withValues(alpha: 0.15),
                         backgroundImage: (photoUrl != null && photoUrl.isNotEmpty)
                             ? NetworkImage(photoUrl)
                             : null,
@@ -547,7 +550,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
     required String docId,
     required String currentReaction,
   }) async {
-    const reactions = <String>['👍', '❤️', '🔥', '😂', '😮', '😢'];
+    const reactions = <String>['', '❤️', '', '', '', ''];
     await showModalBottomSheet<void>(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -659,6 +662,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
             children: [
               CircleAvatar(
                 radius: 16,
+                backgroundColor: isSystemChat ? Color(0xFF2E7D32).withValues(alpha: 0.15) : null,
                 backgroundImage: (widget.partnerPhotoUrl != null && widget.partnerPhotoUrl!.isNotEmpty)
                     ? NetworkImage(widget.partnerPhotoUrl!)
                     : null,
@@ -995,7 +999,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                             const Expanded(
                               child: Text(
                                 'Редагування повiдомлення',
-                                style: TextStyle(fontSize: 13, color: Color(0xFF2E7D70)),
+                                style: TextStyle(fontSize: 13, color: Color(0xFF2E7D32)),
                               ),
                             ),
                             GestureDetector(

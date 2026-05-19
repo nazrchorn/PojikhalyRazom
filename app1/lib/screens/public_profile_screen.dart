@@ -363,6 +363,19 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
         actions: [
           if (widget.isMyProfile)
             IconButton(
+              icon: const Icon(Icons.edit_rounded),
+              tooltip: 'Редагувати профіль',
+              onPressed: () async {
+                final updatedUser = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => EditProfileScreen(user: user)),
+                );
+                if (!context.mounted) return;
+                if (updatedUser != null) _loadUserData();
+              },
+            ),
+          if (widget.isMyProfile)
+            IconButton(
               icon: const Icon(Icons.settings_rounded),
               tooltip: 'Налаштування',
               onPressed: () {
@@ -371,28 +384,6 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                   MaterialPageRoute(builder: (_) => const SettingsScreen()),
                 );
               },
-            ),
-          if (widget.isMyProfile)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert_rounded),
-              onSelected: (value) async {
-                if (value == "edit") {
-                  final updatedUser = await Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => EditProfileScreen(user: user)),
-                  );
-                  if (!context.mounted) return;
-                  if (updatedUser != null) _loadUserData();
-                } else if (value == "logout") {
-                  await fb_auth.FirebaseAuth.instance.signOut();
-                  if (!context.mounted) return;
-                  Navigator.pushReplacementNamed(context, '/login');
-                }
-              },
-              itemBuilder: (context) => [
-                PopupMenuItem(value: "edit", child: Row(children: [Icon(Icons.edit, size: 18, color: accentTurquoiseDeep), const SizedBox(width: 8), const Text("Редагувати")])),
-                const PopupMenuItem(value: "logout", child: Row(children: [Icon(Icons.logout, size: 18, color: Colors.red), SizedBox(width: 8), Text("Вийти", style: TextStyle(color: Colors.red))])),
-              ],
             ),
         ],
       ),

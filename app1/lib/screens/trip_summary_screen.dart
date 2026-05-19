@@ -268,7 +268,7 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
                       ),
                     ),
                     SizedBox(
-                      width: 100,
+                      width: 140,
                       child: TextField(
                         controller: _priceController,
                         keyboardType: TextInputType.number,

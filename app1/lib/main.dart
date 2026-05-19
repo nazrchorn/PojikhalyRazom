@@ -38,6 +38,8 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+    // Load persisted theme mode before starting the app
+    await ThemeController.init();
   runApp(const MyApp());
   await NotificationService.instance.initialize(
     onNotificationTap: _handleNotificationTap,

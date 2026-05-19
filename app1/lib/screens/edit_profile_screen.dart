@@ -16,6 +16,8 @@ class EditProfileScreen extends StatefulWidget {
 class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _nameController;
   late TextEditingController _phoneController;
+  late TextEditingController _emailController;
+  late DateTime? _birthDate;
 
   late bool _isTalkative;
   late bool _isSmoker;
@@ -32,10 +34,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.initState();
     _nameController = TextEditingController(text: widget.user.name);
     _phoneController = TextEditingController(text: widget.user.phone);
+    _emailController = TextEditingController(text: widget.user.email);
+    _birthDate = widget.user.birthDate;
     _isTalkative = widget.user.isTalkative;
     _isSmoker = widget.user.isSmoker;
     _allowSmoking = widget.user.allowSmoking;
     _musicType = widget.user.musicType;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
+    super.dispose();
   }
 
    Future<void> _pickImage() async {
@@ -124,7 +136,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
             _buildLabel("ОСНОВНІ ДАНІ"),
             _buildCustomTextField("Ім'я", _nameController, Icons.person_outline_rounded),
+            _buildCustomTextField("Пошта", _emailController, Icons.email_outlined),
             _buildCustomTextField("Телефон", _phoneController, Icons.phone_android_rounded),
+            _buildDatePickerField(),
 
             const SizedBox(height: 25),
             _buildLabel("АТМОСФЕРА В ДОРОЗІ"),
@@ -205,6 +219,48 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
+  Widget _buildDatePickerField() {
+    final dateText = _birthDate != null
+        ? '${_birthDate!.day}.${_birthDate!.month.toString().padLeft(2, '0')}.${_birthDate!.year}'
+        : 'Не вказано';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 15),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)],
+      ),
+      child: ListTile(
+        leading: Icon(Icons.calendar_today_rounded, color: primaryTurquoise),
+        title: const Text('День народження'),
+        subtitle: Text(dateText, style: TextStyle(color: Colors.grey.shade600)),
+        onTap: () async {
+          final now = DateTime.now();
+          final picked = await showDatePicker(
+            context: context,
+            initialDate: _birthDate ?? DateTime(now.year - 25, 1, 1),
+            firstDate: DateTime(1950),
+            lastDate: now,
+            builder: (context, child) {
+              return Theme(
+                data: Theme.of(context).copyWith(
+                  colorScheme: ColorScheme.light(primary: primaryTurquoise),
+                ),
+                child: child!,
+              );
+            },
+          );
+          if (picked != null) {
+            setState(() => _birthDate = picked);
+          }
+        },
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        tileColor: Colors.white,
+      ),
+    );
+  }
+
   Widget _buildSettingsCard(List<Widget> children) {
     return Container(
       decoration: BoxDecoration(
@@ -239,14 +295,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final updatedUser = User(
       id: widget.user.id,
       name: _nameController.text,
-      email: widget.user.email,
+      email: _emailController.text.isNotEmpty ? _emailController.text : widget.user.email,
       phone: _phoneController.text,
       rating: widget.user.rating,
       cars: widget.user.cars,
       createdAt: widget.user.createdAt,
       photoUrl: photoUrl,
       gender: widget.user.gender,
-      birthDate: widget.user.birthDate,
+      birthDate: _birthDate,
       isTalkative: _isTalkative,
       musicType: _musicType,
       isSmoker: _isSmoker,
