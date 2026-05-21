@@ -464,14 +464,24 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
                                         );
                                   final requestedPrice = request.requestedPrice ?? computedPrice;
 
-                                  return Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: Theme.of(context).cardColor,
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(color: primaryTurquoise.withValues(alpha: 0.25)),
-                                    ),
-                                    child: Column(
+                                  return InkWell(
+                                    borderRadius: BorderRadius.circular(14),
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => DriverBookingRequestScreen(requestId: request.id),
+                                        ),
+                                      );
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(context).cardColor,
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(color: primaryTurquoise.withValues(alpha: 0.25)),
+                                      ),
+                                      child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                          Text(passengerName, style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -480,7 +490,8 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
                                            routeText,
                                            style: TextStyle(
                                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                           ),
+                                                ],
+                                              ),
                                          ),
                                          if (request.pickupAddress != null) ...[
                                            const SizedBox(height: 4),

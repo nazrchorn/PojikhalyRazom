@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'dart:math' show cos, sqrt, asin;
 import '../models/trip.dart';
+import '../models/location.dart';
 import '../models/booking_request.dart';
 import '../models/user.dart' as app_user;
 import '../main.dart';
@@ -127,11 +128,24 @@ class TripDetailScreen extends StatelessWidget {
     if (city == null || city.trim().isEmpty) return -1;
     final normalized = _normalizeCity(city);
     for (int i = 0; i < orderedCities.length; i++) {
-      if (_normalizeCity(orderedCities[i]) == normalized) {
+      final routeCity = _normalizeCity(orderedCities[i]);
+      if (routeCity == normalized || routeCity.contains(normalized) || normalized.contains(routeCity)) {
         return i;
       }
     }
     return -1;
+  }
+
+  Location _resolveLocationForCity(Trip sourceTrip, String city) {
+    final route = <Location>[sourceTrip.origin, ...sourceTrip.stops, sourceTrip.destination];
+    final normalizedCity = _normalizeCity(city);
+    for (final point in route) {
+      final routeCity = _normalizeCity(point.city);
+      if (routeCity == normalizedCity || routeCity.contains(normalizedCity) || normalizedCity.contains(routeCity)) {
+        return point;
+      }
+    }
+    return route.first;
   }
 
   List<String> _buildRouteCities(Trip sourceTrip, Map<String, dynamic>? liveData) {
@@ -987,8 +1001,33 @@ class TripDetailScreen extends StatelessWidget {
     double? pickupLat, pickupLng, dropoffLat, dropoffLng;
     String? pickupAddress, dropoffAddress;
 
-    // Якщо бронюємо не з origin
-    if (bookingFromCity != null && _normalizeCity(bookingFromCity!) != _normalizeCity(trip.origin.city)) {
+    final routeCities = _buildOrderedRouteCities(trip);
+    String? effectiveFromCity = bookingFromCity;
+    String? effectiveToCity = bookingToCity;
+    int fromIdx = effectiveFromCity == null ? -1 : _findCityIndex(routeCities, effectiveFromCity);
+    int toIdx = effectiveToCity == null ? -1 : _findCityIndex(routeCities, effectiveToCity);
+
+    // Guard against accidentally reversed segment boundaries from upstream screens.
+    if (fromIdx >= 0 && toIdx >= 0 && fromIdx > toIdx) {
+      final tmpCity = effectiveFromCity;
+      effectiveFromCity = effectiveToCity;
+      effectiveToCity = tmpCity;
+      final tmpIdx = fromIdx;
+      fromIdx = toIdx;
+      toIdx = tmpIdx;
+    }
+
+    final int lastIdx = routeCities.length - 1;
+    final bool fromDiffersFromOrigin =
+        effectiveFromCity != null && _normalizeCity(effectiveFromCity) != _normalizeCity(trip.origin.city);
+    final bool toDiffersFromDestination =
+        effectiveToCity != null && _normalizeCity(effectiveToCity) != _normalizeCity(trip.destination.city);
+    final bool shouldPickCustomPickup =
+        effectiveFromCity != null && (fromIdx > 0 || (fromIdx < 0 && fromDiffersFromOrigin));
+    final bool shouldPickCustomDropoff =
+        effectiveToCity != null && ((toIdx >= 0 && toIdx < lastIdx) || (toIdx < 0 && toDiffersFromDestination));
+
+    if (shouldPickCustomPickup) {
       final pickupResult = await Navigator.push<Map<String, dynamic>>(
         context,
         MaterialPageRoute(
@@ -996,7 +1035,8 @@ class TripDetailScreen extends StatelessWidget {
             tripOrigin: trip.origin,
             tripDestination: trip.destination,
             isPickup: true,
-            defaultCity: bookingFromCity!,
+            defaultCity: effectiveFromCity!,
+            initialFocusLocation: _resolveLocationForCity(trip, effectiveFromCity),
             apiKey: MyApp.orsKey,
           ),
         ),
@@ -1007,8 +1047,7 @@ class TripDetailScreen extends StatelessWidget {
       pickupAddress = pickupResult['address'] as String;
     }
 
-    // Якщо бронюємо не до destination
-    if (bookingToCity != null && _normalizeCity(bookingToCity!) != _normalizeCity(trip.destination.city)) {
+    if (shouldPickCustomDropoff) {
       final dropoffResult = await Navigator.push<Map<String, dynamic>>(
         context,
         MaterialPageRoute(
@@ -1016,7 +1055,8 @@ class TripDetailScreen extends StatelessWidget {
             tripOrigin: trip.origin,
             tripDestination: trip.destination,
             isPickup: false,
-            defaultCity: bookingToCity!,
+            defaultCity: effectiveToCity!,
+            initialFocusLocation: _resolveLocationForCity(trip, effectiveToCity),
             apiKey: MyApp.orsKey,
           ),
         ),
@@ -1036,12 +1076,12 @@ class TripDetailScreen extends StatelessWidget {
         driverId: trip.driverId,
         passengerId: user.uid,
         passengerName: passengerName,
-        fromCity: bookingFromCity,
-        toCity: bookingToCity,
+        fromCity: effectiveFromCity,
+        toCity: effectiveToCity,
         requestedPrice: _calculateSegmentPrice(
           trip,
-          fromCity: bookingFromCity,
-          toCity: bookingToCity,
+          fromCity: effectiveFromCity,
+          toCity: effectiveToCity,
         ),
         pickupLat: pickupLat,
         pickupLng: pickupLng,

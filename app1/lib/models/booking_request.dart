@@ -16,6 +16,8 @@ class BookingRequest {
   final double? dropoffLng;
   final String? dropoffAddress;
   final DateTime createdAt;
+  final DateTime? updatedByDriverAt;
+  final DateTime? passengerAcknowledgedAt;
   final DateTime? respondedAt;
   final String? respondedBy;
 
@@ -35,6 +37,8 @@ class BookingRequest {
     this.dropoffLat,
     this.dropoffLng,
     this.dropoffAddress,
+    this.updatedByDriverAt,
+    this.passengerAcknowledgedAt,
     this.respondedAt,
     this.respondedBy,
   });
@@ -65,6 +69,9 @@ class BookingRequest {
       dropoffLng: (map['dropoffLng'] as num?)?.toDouble(),
       dropoffAddress: map['dropoffAddress'],
       createdAt: parse(map['createdAt']),
+      updatedByDriverAt: map['updatedByDriverAt'] != null ? parse(map['updatedByDriverAt']) : null,
+      passengerAcknowledgedAt:
+          map['passengerAcknowledgedAt'] != null ? parse(map['passengerAcknowledgedAt']) : null,
       respondedAt: map['respondedAt'] != null ? parse(map['respondedAt']) : null,
       respondedBy: map['respondedBy'],
     );

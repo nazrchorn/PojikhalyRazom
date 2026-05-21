@@ -5,6 +5,9 @@ import 'package:latlong2/latlong.dart';
 
 import '../models/booking_request.dart';
 import '../models/trip.dart';
+import '../models/location.dart';
+import '../main.dart';
+import 'pickup_dropoff_location_screen.dart';
 import '../services/booking_service.dart';
 import '../services/trip_service.dart';
 import '../services/user_service.dart';
@@ -28,6 +31,34 @@ class _DriverBookingRequestScreenState extends State<DriverBookingRequestScreen>
 
   final Color primaryTurquoise = const Color(0xFF1F6F66);
   bool _actionInProgress = false;
+
+  String _normalizeCity(String city) {
+    return city.split(',').first.trim().toLowerCase();
+  }
+
+  int _findCityIndex(List<String> orderedCities, String? city) {
+    if (city == null || city.trim().isEmpty) return -1;
+    final normalized = _normalizeCity(city);
+    for (int i = 0; i < orderedCities.length; i++) {
+      final routeCity = _normalizeCity(orderedCities[i]);
+      if (routeCity == normalized || routeCity.contains(normalized) || normalized.contains(routeCity)) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  Location _resolveLocationForCity(Trip trip, String city) {
+    final route = <Location>[trip.origin, ...trip.stops, trip.destination];
+    final normalized = _normalizeCity(city);
+    for (final point in route) {
+      final routeCity = _normalizeCity(point.city);
+      if (routeCity == normalized || routeCity.contains(normalized) || normalized.contains(routeCity)) {
+        return point;
+      }
+    }
+    return route.first;
+  }
 
   Future<void> _confirmRequest(BookingRequest request) async {
     final currentUid = FirebaseAuth.instance.currentUser?.uid;
@@ -93,6 +124,162 @@ class _DriverBookingRequestScreenState extends State<DriverBookingRequestScreen>
     }
   }
 
+  Future<void> _acknowledgeDriverUpdate(BookingRequest request) async {
+    if (_actionInProgress) return;
+
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUid == null || currentUid != request.passengerId) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Підтвердити зміни може тільки пасажир цього запиту')),
+      );
+      return;
+    }
+
+    setState(() => _actionInProgress = true);
+    try {
+      final passengerData = await _userService.loadUserData(request.passengerId);
+      final passengerName = passengerData?['name'] as String? ?? 'Пасажир';
+      await _bookingService.acknowledgeRequestUpdateByPassenger(
+        requestId: request.id,
+        passengerName: passengerName,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Зміни підтверджено. Очікуйте рішення водія.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Не вдалося підтвердити зміни: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _actionInProgress = false);
+      }
+    }
+  }
+
+  Future<void> _cancelRequestByPassenger(BookingRequest request) async {
+    if (_actionInProgress) return;
+
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUid == null || currentUid != request.passengerId) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Скасувати може тільки пасажир цього запиту')),
+      );
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Скасувати запит?'),
+        content: const Text('Після скасування потрібно буде створити новий запит на бронювання.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Ні'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Так', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _actionInProgress = true);
+    try {
+      await _bookingService.cancelRequestByPassenger(
+        requestId: request.id,
+        passengerId: currentUid,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Запит скасовано')),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Не вдалося скасувати: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _actionInProgress = false);
+      }
+    }
+  }
+
+  Future<void> _editStopPoint({
+    required Trip trip,
+    required BookingRequest request,
+    required bool isPickup,
+  }) async {
+    if (_actionInProgress) return;
+
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUid == null || currentUid != request.driverId) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Змінювати точки може тільки водій цієї поїздки')),
+      );
+      return;
+    }
+
+    final String defaultCity = isPickup
+        ? (request.fromCity ?? trip.origin.city)
+        : (request.toCity ?? trip.destination.city);
+    final Location initialFocus = _resolveLocationForCity(trip, defaultCity);
+
+    final result = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PickupDropoffLocationScreen(
+          tripOrigin: trip.origin,
+          tripDestination: trip.destination,
+          initialFocusLocation: initialFocus,
+          isPickup: isPickup,
+          defaultCity: defaultCity,
+          apiKey: MyApp.orsKey,
+        ),
+      ),
+    );
+    if (!mounted || result == null) return;
+
+    setState(() => _actionInProgress = true);
+    try {
+      await _bookingService.updateRequestStopPointByDriver(
+        requestId: request.id,
+        isPickup: isPickup,
+        lat: result['latitude'] as double,
+        lng: result['longitude'] as double,
+        address: result['address'] as String,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isPickup ? 'Точку посадки оновлено та надіслано пасажиру' : 'Точку висадки оновлено та надіслано пасажиру',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Не вдалося оновити точку: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _actionInProgress = false);
+      }
+    }
+  }
+
   Widget _buildRequestMap(Trip trip, BookingRequest request) {
     final List<Marker> markers = <Marker>[
       Marker(
@@ -139,9 +326,22 @@ class _DriverBookingRequestScreenState extends State<DriverBookingRequestScreen>
       );
     }
 
+    final List<String> routeCities = <String>[trip.origin.city, ...trip.stops.map((s) => s.city), trip.destination.city];
+    final int fromIdx = _findCityIndex(routeCities, request.fromCity);
+    final int toIdx = _findCityIndex(routeCities, request.toCity);
+    final bool hasFromStop = fromIdx > 0 && (fromIdx - 1) < trip.stops.length;
+    final bool hasToStop = toIdx > 0 && toIdx < routeCities.length - 1 && (toIdx - 1) < trip.stops.length;
+    final LatLng segmentFocus = hasFromStop
+        ? LatLng(trip.stops[fromIdx - 1].lat, trip.stops[fromIdx - 1].lng)
+        : hasToStop
+            ? LatLng(trip.stops[toIdx - 1].lat, trip.stops[toIdx - 1].lng)
+            : LatLng(trip.origin.lat, trip.origin.lng);
+
     final LatLng initialCenter = (request.pickupLat != null && request.pickupLng != null)
         ? LatLng(request.pickupLat!, request.pickupLng!)
-        : LatLng(trip.origin.lat, trip.origin.lng);
+        : (request.dropoffLat != null && request.dropoffLng != null)
+            ? LatLng(request.dropoffLat!, request.dropoffLng!)
+            : segmentFocus;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
@@ -211,8 +411,17 @@ class _DriverBookingRequestScreenState extends State<DriverBookingRequestScreen>
                   ? '${request.fromCity} -> ${request.toCity}'
                   : '${trip.origin.city} -> ${trip.destination.city}';
 
-              final canAct = request.status == 'pending' &&
-                  FirebaseAuth.instance.currentUser?.uid == request.driverId;
+              final currentUid = FirebaseAuth.instance.currentUser?.uid;
+              final isDriverView = currentUid == request.driverId;
+              final isPassengerView = currentUid == request.passengerId;
+              final canAct = request.status == 'pending' && isDriverView;
+              final bool hasDriverUpdate = request.updatedByDriverAt != null;
+              final bool passengerNeedsToReviewUpdate =
+                  hasDriverUpdate &&
+                  request.status == 'pending' &&
+                  isPassengerView &&
+                  (request.passengerAcknowledgedAt == null ||
+                      request.passengerAcknowledgedAt!.isBefore(request.updatedByDriverAt!));
 
               return SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
@@ -266,6 +475,70 @@ class _DriverBookingRequestScreenState extends State<DriverBookingRequestScreen>
                         child: Text('Висадка: ${request.dropoffAddress}', style: const TextStyle(fontSize: 13)),
                       ),
                     const SizedBox(height: 16),
+                    if (passengerNeedsToReviewUpdate) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEAF7F4),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: primaryTurquoise.withValues(alpha: 0.35)),
+                        ),
+                        child: const Text(
+                          'Водій оновив точку на карті. Перевірте мінікарту та підтвердьте зміни або скасуйте запит.',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      ElevatedButton.icon(
+                        onPressed: _actionInProgress ? null : () => _acknowledgeDriverUpdate(request),
+                        icon: const Icon(Icons.check_circle_outline, color: Colors.white),
+                        label: const Text('Підтвердити нову точку', style: TextStyle(color: Colors.white)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryTurquoise,
+                          minimumSize: const Size.fromHeight(44),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: _actionInProgress ? null : () => _cancelRequestByPassenger(request),
+                        icon: const Icon(Icons.cancel_outlined, color: Colors.red),
+                        label: const Text('Скасувати запит', style: TextStyle(color: Colors.red)),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(44),
+                          side: const BorderSide(color: Colors.red),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    if (canAct) ...[
+                      OutlinedButton.icon(
+                        onPressed: _actionInProgress
+                            ? null
+                            : () => _editStopPoint(trip: trip, request: request, isPickup: true),
+                        icon: const Icon(Icons.edit_location_alt_outlined, size: 18),
+                        label: const Text('Перевибрати точку посадки'),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(42),
+                          foregroundColor: primaryTurquoise,
+                          side: BorderSide(color: primaryTurquoise.withValues(alpha: 0.45)),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                        onPressed: _actionInProgress
+                            ? null
+                            : () => _editStopPoint(trip: trip, request: request, isPickup: false),
+                        icon: const Icon(Icons.flag_outlined, size: 18),
+                        label: const Text('Перевибрати точку висадки'),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(42),
+                          foregroundColor: primaryTurquoise,
+                          side: BorderSide(color: primaryTurquoise.withValues(alpha: 0.45)),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
                     if (!canAct)
                       Container(
                         width: double.infinity,

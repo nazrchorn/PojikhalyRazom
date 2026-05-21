@@ -143,32 +143,108 @@ class BookingService {
       'respondedBy': null,
     });
 
-    final routeText = (fromCity != null && toCity != null)
-        ? ' ($fromCity -> $toCity)'
-        : '';
-
     await Future.wait([
       _sendSystemMessageSafe(
         receiverId: driverId,
-        text: 'Новий запит на бронювання в поїздці вiд $passengerName$routeText.',
+        text: 'Новий запит на бронювання в поїздці. Відкрийте, щоб переглянути та підтвердити.',
         tripId: tripId,
         type: 'booking_request_created',
         metadata: {
           'bookingRequestId': doc.id,
           'passengerId': passengerId,
-          'passengerName': passengerName,
           'fromCity': fromCity,
           'toCity': toCity,
-          'requestedPrice': requestedPrice,
         },
       ),
       _sendSystemMessageSafe(
         receiverId: passengerId,
         text: 'Ваш запит на бронювання надiслано водiю. Очiкуйте пiдтвердження.',
         tripId: tripId,
-        type: 'booking_request_created',
+        type: 'booking_request_created_passenger',
+        metadata: {
+          'fromCity': fromCity,
+          'toCity': toCity,
+        },
       ),
     ]);
+  }
+
+  Future<void> updateRequestStopPointByDriver({
+    required String requestId,
+    required bool isPickup,
+    required double lat,
+    required double lng,
+    required String address,
+  }) async {
+    final requestRef = _requests.doc(requestId);
+    final snap = await requestRef.get();
+    if (!snap.exists || snap.data() == null) {
+      throw StateError('Запит не знайдено');
+    }
+
+    final data = snap.data()!;
+    if ((data['status'] as String? ?? '') != 'pending') {
+      throw StateError('Змінювати можна лише активний запит');
+    }
+
+    final tripId = data['tripId'] as String? ?? '';
+    final passengerId = data['passengerId'] as String? ?? '';
+    final fieldPrefix = isPickup ? 'pickup' : 'dropoff';
+
+    await requestRef.update({
+      '${fieldPrefix}Lat': lat,
+      '${fieldPrefix}Lng': lng,
+      '${fieldPrefix}Address': address,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'updatedByDriverAt': FieldValue.serverTimestamp(),
+    });
+
+    final pointLabel = isPickup ? 'посадки' : 'висадки';
+    await _sendSystemMessageSafe(
+      receiverId: passengerId,
+      text: 'Водій оновив точку $pointLabel у вашому запиті. Перегляньте зміни перед підтвердженням.',
+      tripId: tripId,
+      type: isPickup ? 'booking_request_pickup_updated' : 'booking_request_dropoff_updated',
+      metadata: {
+        'bookingRequestId': requestId,
+        'address': address,
+        'isPickup': isPickup,
+      },
+    );
+  }
+
+  Future<void> acknowledgeRequestUpdateByPassenger({
+    required String requestId,
+    required String passengerName,
+  }) async {
+    final requestRef = _requests.doc(requestId);
+    final requestSnap = await requestRef.get();
+    if (!requestSnap.exists || requestSnap.data() == null) {
+      throw StateError('Запит не знайдено');
+    }
+
+    final data = requestSnap.data()!;
+    if ((data['status'] as String? ?? '') != 'pending') {
+      throw StateError('Запит вже оброблено');
+    }
+
+    final tripId = data['tripId'] as String? ?? '';
+    final driverId = data['driverId'] as String? ?? '';
+
+    await requestRef.update({
+      'passengerAcknowledgedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+
+    await _sendSystemMessageSafe(
+      receiverId: driverId,
+      text: '$passengerName погодив(ла) оновлену точку в запиті на бронювання.',
+      tripId: tripId,
+      type: 'booking_request_update_acknowledged',
+      metadata: {
+        'bookingRequestId': requestId,
+      },
+    );
   }
 
   Future<void> confirmBookingRequest({
@@ -339,6 +415,80 @@ class BookingService {
       }
 
       tx.update(reqRef, {
+        'status': 'cancelled',
+        'respondedAt': FieldValue.serverTimestamp(),
+        'respondedBy': passengerId,
+      });
+    });
+
+    final actionText = status == 'confirmed'
+        ? 'скасував(ла) бронювання в поїздцi.'
+        : 'скасував(ла) запит на бронювання.';
+
+    await Future.wait([
+      _chatService.sendSystemMessage(
+        receiverId: driverId,
+        text: 'Пасажир $actionText',
+        tripId: tripId,
+        type: 'booking_request_cancelled',
+      ),
+      _chatService.sendSystemMessage(
+        receiverId: passengerId,
+        text: 'Ваш запит/бронювання скасовано.',
+        tripId: tripId,
+        type: 'booking_request_cancelled',
+      ),
+    ]);
+  }
+
+  Future<void> cancelRequestByPassenger({
+    required String requestId,
+    required String passengerId,
+  }) async {
+    final requestRef = _requests.doc(requestId);
+    final requestSnap = await requestRef.get();
+    if (!requestSnap.exists || requestSnap.data() == null) {
+      throw StateError('Запит не знайдено');
+    }
+
+    final data = requestSnap.data()!;
+    if ((data['passengerId'] as String? ?? '') != passengerId) {
+      throw StateError('Скасувати може лише пасажир цього запиту');
+    }
+
+    final tripId = data['tripId'] as String? ?? '';
+    final status = data['status'] as String? ?? '';
+    final driverId = data['driverId'] as String? ?? '';
+
+    await _firestore.runTransaction((tx) async {
+      final freshReq = await tx.get(requestRef);
+      if (!freshReq.exists || freshReq.data() == null) {
+        throw StateError('Запит не знайдено');
+      }
+
+      final reqData = freshReq.data()!;
+      final reqStatus = reqData['status'] as String? ?? '';
+      if (reqStatus != 'pending' && reqStatus != 'confirmed') {
+        throw StateError('Запит вже неактивний');
+      }
+
+      if (reqStatus == 'confirmed') {
+        final tripRef = _firestore.collection('trips').doc(tripId);
+        final tripSnap = await tx.get(tripRef);
+        final tripData = tripSnap.data() ?? <String, dynamic>{};
+        final seats = (tripData['availableSeats'] as num?)?.toInt() ?? 0;
+        final passengers = List<String>.from(tripData['passengers'] ?? const <String>[]);
+        if (passengers.contains(passengerId)) {
+          passengers.remove(passengerId);
+          tx.update(tripRef, {
+            'availableSeats': seats + 1,
+            'passengers': passengers,
+            'passengerSegments.$passengerId': FieldValue.delete(),
+          });
+        }
+      }
+
+      tx.update(requestRef, {
         'status': 'cancelled',
         'respondedAt': FieldValue.serverTimestamp(),
         'respondedBy': passengerId,

@@ -6,6 +6,7 @@ import '../models/location.dart';
 class PickupDropoffLocationScreen extends StatefulWidget {
   final Location tripOrigin;
   final Location tripDestination;
+  final Location? initialFocusLocation;
   final bool isPickup;
   final String defaultCity;
   final String apiKey;
@@ -14,6 +15,7 @@ class PickupDropoffLocationScreen extends StatefulWidget {
     super.key,
     required this.tripOrigin,
     required this.tripDestination,
+    this.initialFocusLocation,
     required this.isPickup,
     required this.defaultCity,
     required this.apiKey,
@@ -35,14 +37,13 @@ class _PickupDropoffLocationScreenState extends State<PickupDropoffLocationScree
   @override
   void initState() {
     super.initState();
-    // Спочатку центруємо карту на місто (origin або destination залежно від типу)
-    if (widget.isPickup) {
-      _selectedLocation = LatLng(widget.tripOrigin.lat, widget.tripOrigin.lng);
-      _selectedAddress = widget.tripOrigin.city;
-    } else {
-      _selectedLocation = LatLng(widget.tripDestination.lat, widget.tripDestination.lng);
-      _selectedAddress = widget.tripDestination.city;
-    }
+    // For segment bookings, focus first on the selected stop city when it is known.
+    final Location anchor = widget.initialFocusLocation ??
+        (widget.isPickup ? widget.tripOrigin : widget.tripDestination);
+    _selectedLocation = LatLng(anchor.lat, anchor.lng);
+    _selectedAddress = widget.defaultCity.trim().isNotEmpty
+        ? widget.defaultCity
+        : anchor.city;
     _addressController.text = _selectedAddress ?? '';
   }
 
