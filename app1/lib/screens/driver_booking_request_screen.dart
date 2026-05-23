@@ -31,6 +31,45 @@ class _DriverBookingRequestScreenState extends State<DriverBookingRequestScreen>
 
   final Color primaryTurquoise = const Color(0xFF1F6F66);
   bool _actionInProgress = false;
+  Map<String, dynamic>? _draftPickupPoint;
+  Map<String, dynamic>? _draftDropoffPoint;
+
+  bool get _hasPendingStopPointChanges =>
+      _draftPickupPoint != null || _draftDropoffPoint != null;
+
+  String? _effectivePickupAddress(BookingRequest request) {
+    return (_draftPickupPoint?['address'] as String?) ?? request.pickupAddress;
+  }
+
+  String? _effectiveDropoffAddress(BookingRequest request) {
+    return (_draftDropoffPoint?['address'] as String?) ?? request.dropoffAddress;
+  }
+
+  LatLng? _effectivePickupLatLng(BookingRequest request) {
+    if (_draftPickupPoint != null) {
+      return LatLng(
+        (_draftPickupPoint!['lat'] as num).toDouble(),
+        (_draftPickupPoint!['lng'] as num).toDouble(),
+      );
+    }
+    if (request.pickupLat != null && request.pickupLng != null) {
+      return LatLng(request.pickupLat!, request.pickupLng!);
+    }
+    return null;
+  }
+
+  LatLng? _effectiveDropoffLatLng(BookingRequest request) {
+    if (_draftDropoffPoint != null) {
+      return LatLng(
+        (_draftDropoffPoint!['lat'] as num).toDouble(),
+        (_draftDropoffPoint!['lng'] as num).toDouble(),
+      );
+    }
+    if (request.dropoffLat != null && request.dropoffLng != null) {
+      return LatLng(request.dropoffLat!, request.dropoffLng!);
+    }
+    return null;
+  }
 
   String _normalizeCity(String city) {
     return city.split(',').first.trim().toLowerCase();
@@ -146,8 +185,9 @@ class _DriverBookingRequestScreenState extends State<DriverBookingRequestScreen>
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Зміни підтверджено. Очікуйте рішення водія.')),
+        const SnackBar(content: Text('Зміни підтверджено. Бронювання оформлено.')),
       );
+      Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -251,27 +291,65 @@ class _DriverBookingRequestScreenState extends State<DriverBookingRequestScreen>
     );
     if (!mounted || result == null) return;
 
-    setState(() => _actionInProgress = true);
-    try {
-      await _bookingService.updateRequestStopPointByDriver(
-        requestId: request.id,
-        isPickup: isPickup,
-        lat: result['latitude'] as double,
-        lng: result['longitude'] as double,
-        address: result['address'] as String,
-      );
+    setState(() {
+      final point = <String, dynamic>{
+        'lat': result['latitude'] as double,
+        'lng': result['longitude'] as double,
+        'address': result['address'] as String,
+      };
+      if (isPickup) {
+        _draftPickupPoint = point;
+      } else {
+        _draftDropoffPoint = point;
+      }
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isPickup
+              ? 'Нова точка посадки збережена. Надішліть зміни пасажиру.'
+              : 'Нова точка висадки збережена. Надішліть зміни пасажиру.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _sendStopPointChangesToPassenger(BookingRequest request) async {
+    if (_actionInProgress || !_hasPendingStopPointChanges) return;
+
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUid == null || currentUid != request.driverId) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            isPickup ? 'Точку посадки оновлено та надіслано пасажиру' : 'Точку висадки оновлено та надіслано пасажиру',
-          ),
+        const SnackBar(content: Text('Надсилати зміни може тільки водій цієї поїздки')),
+      );
+      return;
+    }
+
+    setState(() => _actionInProgress = true);
+    try {
+      await _bookingService.updateRequestStopPointsByDriver(
+        requestId: request.id,
+        pickup: _draftPickupPoint,
+        dropoff: _draftDropoffPoint,
+      );
+      if (!mounted) return;
+
+      setState(() {
+        _draftPickupPoint = null;
+        _draftDropoffPoint = null;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Зміни точок надіслано пасажиру одним запитом на погодження'),
         ),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Не вдалося оновити точку: $e')),
+        SnackBar(content: Text('Не вдалося надіслати зміни: $e')),
       );
     } finally {
       if (mounted) {
@@ -304,10 +382,13 @@ class _DriverBookingRequestScreenState extends State<DriverBookingRequestScreen>
       ),
     ];
 
-    if (request.pickupLat != null && request.pickupLng != null) {
+    final effectivePickup = _effectivePickupLatLng(request);
+    final effectiveDropoff = _effectiveDropoffLatLng(request);
+
+    if (effectivePickup != null) {
       markers.add(
         Marker(
-          point: LatLng(request.pickupLat!, request.pickupLng!),
+          point: effectivePickup,
           width: 46,
           height: 46,
           child: const Icon(Icons.location_on, color: Colors.blue, size: 38),
@@ -315,10 +396,10 @@ class _DriverBookingRequestScreenState extends State<DriverBookingRequestScreen>
       );
     }
 
-    if (request.dropoffLat != null && request.dropoffLng != null) {
+    if (effectiveDropoff != null) {
       markers.add(
         Marker(
-          point: LatLng(request.dropoffLat!, request.dropoffLng!),
+          point: effectiveDropoff,
           width: 46,
           height: 46,
           child: const Icon(Icons.flag_circle, color: Color(0xFF1F6F66), size: 34),
@@ -337,11 +418,7 @@ class _DriverBookingRequestScreenState extends State<DriverBookingRequestScreen>
             ? LatLng(trip.stops[toIdx - 1].lat, trip.stops[toIdx - 1].lng)
             : LatLng(trip.origin.lat, trip.origin.lng);
 
-    final LatLng initialCenter = (request.pickupLat != null && request.pickupLng != null)
-        ? LatLng(request.pickupLat!, request.pickupLng!)
-        : (request.dropoffLat != null && request.dropoffLng != null)
-            ? LatLng(request.dropoffLat!, request.dropoffLng!)
-            : segmentFocus;
+    final LatLng initialCenter = effectivePickup ?? effectiveDropoff ?? segmentFocus;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
@@ -415,7 +492,18 @@ class _DriverBookingRequestScreenState extends State<DriverBookingRequestScreen>
               final isDriverView = currentUid == request.driverId;
               final isPassengerView = currentUid == request.passengerId;
               final canAct = request.status == 'pending' && isDriverView;
+              final bool hasPickupPoint =
+                  (_effectivePickupAddress(request)?.trim().isNotEmpty ?? false) ||
+                  (_effectivePickupLatLng(request) != null);
+              final bool hasDropoffPoint =
+                  (_effectiveDropoffAddress(request)?.trim().isNotEmpty ?? false) ||
+                  (_effectiveDropoffLatLng(request) != null);
               final bool hasDriverUpdate = request.updatedByDriverAt != null;
+              final bool waitingPassengerDecision =
+                  hasDriverUpdate &&
+                  request.status == 'pending' &&
+                  (request.passengerAcknowledgedAt == null ||
+                      request.passengerAcknowledgedAt!.isBefore(request.updatedByDriverAt!));
               final bool passengerNeedsToReviewUpdate =
                   hasDriverUpdate &&
                   request.status == 'pending' &&
@@ -467,13 +555,39 @@ class _DriverBookingRequestScreenState extends State<DriverBookingRequestScreen>
                     const SizedBox(height: 12),
                     _buildRequestMap(trip, request),
                     const SizedBox(height: 10),
-                    if (request.pickupAddress != null)
-                      Text('Посадка: ${request.pickupAddress}', style: const TextStyle(fontSize: 13)),
-                    if (request.dropoffAddress != null)
+                    if (_effectivePickupAddress(request) != null)
+                      Text(
+                        _draftPickupPoint != null
+                            ? 'Посадка (нова): ${_effectivePickupAddress(request)}'
+                            : 'Посадка: ${_effectivePickupAddress(request)}',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                    if (_effectiveDropoffAddress(request) != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
-                        child: Text('Висадка: ${request.dropoffAddress}', style: const TextStyle(fontSize: 13)),
+                        child: Text(
+                          _draftDropoffPoint != null
+                              ? 'Висадка (нова): ${_effectiveDropoffAddress(request)}'
+                              : 'Висадка: ${_effectiveDropoffAddress(request)}',
+                          style: const TextStyle(fontSize: 13),
+                        ),
                       ),
+                    if (isDriverView && _hasPendingStopPointChanges) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEAF7F4),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: primaryTurquoise.withValues(alpha: 0.3)),
+                        ),
+                        child: const Text(
+                          'Є локально збережені зміни точок. Пасажир отримає один запит тільки після кнопки "Надіслати зміни пасажиру".',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     if (passengerNeedsToReviewUpdate) ...[
                       Container(
@@ -511,35 +625,68 @@ class _DriverBookingRequestScreenState extends State<DriverBookingRequestScreen>
                       ),
                       const SizedBox(height: 10),
                     ],
-                    if (canAct) ...[
-                      OutlinedButton.icon(
-                        onPressed: _actionInProgress
-                            ? null
-                            : () => _editStopPoint(trip: trip, request: request, isPickup: true),
-                        icon: const Icon(Icons.edit_location_alt_outlined, size: 18),
-                        label: const Text('Перевибрати точку посадки'),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(42),
-                          foregroundColor: primaryTurquoise,
-                          side: BorderSide(color: primaryTurquoise.withValues(alpha: 0.45)),
+                    if (canAct && (hasPickupPoint || hasDropoffPoint)) ...[
+                      if (hasPickupPoint)
+                        OutlinedButton.icon(
+                          onPressed: _actionInProgress
+                              ? null
+                              : () => _editStopPoint(trip: trip, request: request, isPickup: true),
+                          icon: const Icon(Icons.edit_location_alt_outlined, size: 18),
+                          label: const Text('Перевибрати точку посадки'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(42),
+                            foregroundColor: primaryTurquoise,
+                            side: BorderSide(color: primaryTurquoise.withValues(alpha: 0.45)),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                        onPressed: _actionInProgress
-                            ? null
-                            : () => _editStopPoint(trip: trip, request: request, isPickup: false),
-                        icon: const Icon(Icons.flag_outlined, size: 18),
-                        label: const Text('Перевибрати точку висадки'),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(42),
-                          foregroundColor: primaryTurquoise,
-                          side: BorderSide(color: primaryTurquoise.withValues(alpha: 0.45)),
+                      if (hasPickupPoint && hasDropoffPoint) const SizedBox(height: 8),
+                      if (hasDropoffPoint)
+                        OutlinedButton.icon(
+                          onPressed: _actionInProgress
+                              ? null
+                              : () => _editStopPoint(trip: trip, request: request, isPickup: false),
+                          icon: const Icon(Icons.flag_outlined, size: 18),
+                          label: const Text('Перевибрати точку висадки'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(42),
+                            foregroundColor: primaryTurquoise,
+                            side: BorderSide(color: primaryTurquoise.withValues(alpha: 0.45)),
+                          ),
                         ),
-                      ),
+                      if (_hasPendingStopPointChanges) ...[
+                        const SizedBox(height: 8),
+                        ElevatedButton.icon(
+                          onPressed: _actionInProgress
+                              ? null
+                              : () => _sendStopPointChangesToPassenger(request),
+                          icon: const Icon(Icons.send_rounded, color: Colors.white),
+                          label: const Text(
+                            'Надіслати зміни пасажиру',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryTurquoise,
+                            minimumSize: const Size.fromHeight(44),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 10),
                     ],
-                    if (!canAct)
+                    if (isDriverView && waitingPassengerDecision)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF8E1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.amber.shade300),
+                        ),
+                        child: const Text(
+                          'Ви оновили точку. Тепер очікується згода пасажира. Після відмови запит скасується автоматично, після згоди — підтвердиться без дій водія.',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      )
+                    else if (!canAct)
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
@@ -554,7 +701,7 @@ class _DriverBookingRequestScreenState extends State<DriverBookingRequestScreen>
                           style: const TextStyle(color: Colors.black54),
                         ),
                       )
-                    else
+                    else if (!waitingPassengerDecision)
                       Row(
                         children: [
                           Expanded(

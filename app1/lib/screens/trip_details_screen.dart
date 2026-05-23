@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'dart:math' show cos, sqrt, asin;
 import '../models/trip.dart';
@@ -417,6 +418,8 @@ class TripDetailScreen extends StatelessWidget {
                         children: [
                           if (trip.womenOnly)
                             _buildModernFilter(context, "Тільки жінки", FontAwesomeIcons.personDress, isAccent: true),
+                          if (trip.allowMobilization)
+                            _buildModernFilter(context, "Жінки і пенсіонери", Icons.shield_outlined, isAccent: false),
                           // Тварини: якщо не можна, то сірий колір
                           _buildModernFilter(
                               context,
@@ -569,7 +572,7 @@ class TripDetailScreen extends StatelessWidget {
             _buildDriverRequestsPanel(context),
           ],
 
-          if (!isDriver && showBookingButton && !isTripCompleted && canModifyTrip) ...[
+          if (!isDriver && currentUserId.isNotEmpty && !isTripCompleted && canModifyTrip) ...[
             const SizedBox(height: 12),
             StreamBuilder<BookingRequest?>(
               stream: _bookingService.watchPassengerLatestRequest(trip.id, currentUserId),
@@ -597,7 +600,7 @@ class TripDetailScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       OutlinedButton(
-                        onPressed: () => _cancelBooking(context),
+                        onPressed: () => _cancelBooking(context, request: request),
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size.fromHeight(48),
                           foregroundColor: Colors.red,
@@ -612,7 +615,7 @@ class TripDetailScreen extends StatelessWidget {
 
                 if (hasConfirmed) {
                   return OutlinedButton(
-                    onPressed: () => _cancelBooking(context),
+                    onPressed: () => _cancelBooking(context, request: request),
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size.fromHeight(48),
                       foregroundColor: Colors.red,
@@ -621,6 +624,11 @@ class TripDetailScreen extends StatelessWidget {
                     ),
                     child: const Text('Скасувати бронювання', style: TextStyle(fontWeight: FontWeight.bold)),
                   );
+                }
+
+                // In My Trips details we still show active request state, but do not offer creating a new request.
+                if (!showBookingButton) {
+                  return const SizedBox.shrink();
                 }
 
                 if (liveSeats <= 0) {
@@ -997,6 +1005,57 @@ class TripDetailScreen extends StatelessWidget {
     final passengerName = passengerData?['name'] as String? ?? 'Пасажир';
     if (!context.mounted) return;
 
+    // Перевірка: поїздка "тільки жінки" — блокуємо чоловіків
+    if (trip.womenOnly) {
+      final gender = passengerData?['gender'] as String? ?? '';
+      final isWoman = gender == 'Жінка' || gender == 'жінка';
+      if (!isWoman) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🌸 Ця поїздка лише для пасажирів-жінок'),
+            backgroundColor: Colors.pink,
+          ),
+        );
+        return;
+      }
+    }
+
+    // Перевірка мобілізаційного режиму: лише жінки або пенсіонери.
+    if (trip.allowMobilization) {
+      final gender = passengerData?['gender'] as String? ?? '';
+      final isWoman = gender == 'Жінка' || gender == 'жінка';
+      if (!isWoman) {
+        final dynamic rawBirthDate = passengerData?['birthDate'];
+        DateTime? birthDate;
+        if (rawBirthDate is Timestamp) {
+          birthDate = rawBirthDate.toDate();
+        } else if (rawBirthDate is DateTime) {
+          birthDate = rawBirthDate;
+        }
+
+        int? age;
+        if (birthDate != null) {
+          final now = DateTime.now();
+          age = now.year - birthDate.year;
+          if (now.month < birthDate.month ||
+              (now.month == birthDate.month && now.day < birthDate.day)) {
+            age--;
+          }
+        }
+
+        final bool isPensioner = age != null && age >= 60;
+        if (!isPensioner) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Для цієї поїздки дозволено бронювання лише жінкам та пенсіонерам'),
+              backgroundColor: Colors.blueAccent,
+            ),
+          );
+          return;
+        }
+      }
+    }
+
     // Якщо пасажир запрошує з зупинки, запропонувати вибір точної точки
     double? pickupLat, pickupLng, dropoffLat, dropoffLng;
     String? pickupAddress, dropoffAddress;
@@ -1144,15 +1203,34 @@ class TripDetailScreen extends StatelessWidget {
     }
   }
 
-  Future<void> _cancelBooking(BuildContext context) async {
+  Future<void> _cancelBooking(BuildContext context, {BookingRequest? request}) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
+    // ...existing code...
 
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Скасувати бронювання?'),
-        content: const Text('Ви впевнені, що хочете скасувати своє місце в цій поїздці?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Ви впевнені, що хочете скасувати своє місце в цій поїздці?'),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                'Увага: при скасуванні рейтинг буде знижено',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -1171,24 +1249,81 @@ class TripDetailScreen extends StatelessWidget {
 
     try {
       showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
-      await _bookingService.cancelLatestByPassenger(tripId: trip.id, passengerId: user.uid);
+      bool cancelled = false;
+
+      // Primary path: cancel the exact request shown in UI.
+      if (request != null && (request.status == 'pending' || request.status == 'confirmed')) {
+        await _bookingService.cancelRequestByPassenger(
+          requestId: request.id,
+          passengerId: user.uid,
+        );
+        cancelled = true;
+      }
+
+      // Secondary path: cancel latest active request (pending/confirmed).
+      if (!cancelled) {
+        try {
+          await _bookingService.cancelLatestByPassenger(
+            tripId: trip.id,
+            passengerId: user.uid,
+          );
+          cancelled = true;
+        } catch (_) {
+          // Fall through to direct seat release below.
+        }
+      }
+
+      // Final fallback: release seat/segment directly, even if request history is inconsistent.
+      if (!cancelled) {
+        await _tripService.cancelBooking(
+          tripId: trip.id,
+          userId: user.uid,
+        );
+      }
+
       if (context.mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('✓ Бронювання скасовано')),
         );
+        Navigator.of(context).pop(true);
       }
     } catch (e) {
-      if (context.mounted) Navigator.pop(context);
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Не вдалося скасувати бронювання: $e')),
+        );
+      }
     }
   }
 
   Future<void> _cancelTrip(BuildContext context) async {
+    // ...existing code...
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Скасувати поїздку?'),
-        content: const Text('Це сповістить усіх пасажирів про скасування.'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Це сповістить усіх пасажирів про скасування.'),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                'Увага: при скасуванні рейтинг буде знижено',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),

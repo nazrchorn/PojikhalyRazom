@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -38,11 +39,12 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   final UserService _userService = UserService();
   final ReviewService _reviewService = ReviewService();
   final TripService _tripService = TripService();
+  StreamSubscription<fb_auth.User?>? _authSubscription;
 
   // Твої фірмові кольори
-  final Color primaryTurquoise = const Color(0xFF1F6F66);
+  final Color primaryTurquoise = const Color(0xFF2F8F7F);
   final Color bgTurquoiseLight = const Color(0xFFE8F8F5);
-  final Color accentTurquoiseDark = const Color(0xFF1F6F66);
+  final Color accentTurquoiseDark = const Color(0xFF2F8F7F);
   final Color accentTurquoiseDeep = const Color(0xFF1F6F66);
   final Color accentTurquoiseSoft = const Color(0xFFD9F3EE);
   final Color accentTurquoiseSurface = const Color(0xFFF2FBF8);
@@ -52,16 +54,51 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _authSubscription = fb_auth.FirebaseAuth.instance.authStateChanges().listen((_) {
+      if (!mounted || !widget.isMyProfile) return;
+      _loadUserData();
+    });
     _loadUserData();
   }
 
+  @override
+  void didUpdateWidget(covariant PublicProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.userId != widget.userId || oldWidget.isMyProfile != widget.isMyProfile) {
+      _loadUserData();
+    }
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
+  }
+
+  String _resolvedUserId() {
+    if (widget.userId.trim().isNotEmpty) {
+      return widget.userId.trim();
+    }
+    if (widget.isMyProfile) {
+      return fb_auth.FirebaseAuth.instance.currentUser?.uid ?? '';
+    }
+    return '';
+  }
+
   Future<void> _loadUserData() async {
-    if (widget.userId.isEmpty) {
-      if (mounted) setState(() => isLoading = false);
+    final targetUserId = _resolvedUserId();
+    if (targetUserId.isEmpty) {
+      if (mounted) {
+        setState(() {
+          currentUser = null;
+          // For my profile keep spinner while auth session resolves after login.
+          isLoading = widget.isMyProfile;
+        });
+      }
       return;
     }
     try {
-      final loadedUser = await _userService.loadUser(widget.userId);
+      final loadedUser = await _userService.loadUser(targetUserId);
 
       if (mounted) {
         if (loadedUser != null) {
@@ -142,7 +179,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
         return;
       }
 
-      _loadUserData(); // Перезавантажуємо дані, щоб оновити UI
+          _loadUserData(); // Перезавантажуємо дані, щоб оновити UI
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -169,7 +206,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
 
     if (newCar != null && mounted) {
       try {
-        await _userService.addCar(widget.userId, newCar);
+        await _userService.addCar(_resolvedUserId(), newCar);
 
         _loadUserData(); // Перезавантажуємо дані, щоб оновити UI
         if (mounted) {
@@ -211,14 +248,15 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
     );
 
     if (confirm == true) {
-      await _userService.deleteCar(widget.userId, car);
+      await _userService.deleteCar(_resolvedUserId(), car);
       _loadUserData(); // Оновлюємо UI після видалення
     }
   }
   Future<Map<String, dynamic>> _loadProfileStats() async {
-    final averageRating = await _reviewService.getAverageRating(widget.userId);
-    final reviewCount = await _reviewService.getReviewCountForUser(widget.userId);
-    final completedTrips = await _tripService.getCompletedTripsCountForDriver(widget.userId);
+    final targetUserId = _resolvedUserId();
+    final averageRating = await _reviewService.getAverageRating(targetUserId);
+    final reviewCount = await _reviewService.getReviewCountForUser(targetUserId);
+    final completedTrips = await _tripService.getCompletedTripsCountForDriver(targetUserId);
 
     return <String, dynamic>{
       'averageRating': averageRating,
@@ -363,19 +401,6 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
         actions: [
           if (widget.isMyProfile)
             IconButton(
-              icon: const Icon(Icons.edit_rounded),
-              tooltip: 'Редагувати профіль',
-              onPressed: () async {
-                final updatedUser = await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => EditProfileScreen(user: user)),
-                );
-                if (!context.mounted) return;
-                if (updatedUser != null) _loadUserData();
-              },
-            ),
-          if (widget.isMyProfile)
-            IconButton(
               icon: const Icon(Icons.settings_rounded),
               tooltip: 'Налаштування',
               onPressed: () {
@@ -383,6 +408,21 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
                   context,
                   MaterialPageRoute(builder: (_) => const SettingsScreen()),
                 );
+              },
+            ),
+          if (widget.isMyProfile)
+            IconButton(
+              icon: const Icon(Icons.edit_rounded),
+              tooltip: 'Редагувати профіль',
+              onPressed: () async {
+                final updatedUser = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => EditProfileScreen(user: user),
+                  ),
+                );
+                if (!context.mounted) return;
+                if (updatedUser != null) _loadUserData();
               },
             ),
         ],
@@ -758,7 +798,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => ReviewsListScreen(userId: widget.userId, userName: user.name),
+            builder: (context) => ReviewsListScreen(userId: _resolvedUserId(), userName: user.name),
           ),
         );
       },
@@ -771,7 +811,7 @@ class _PublicProfileScreenState extends State<PublicProfileScreen> {
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)],
         ),
         child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: _reviewService.getReviewsForUser(widget.userId),
+          stream: _reviewService.getReviewsForUser(_resolvedUserId()),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               return Column(

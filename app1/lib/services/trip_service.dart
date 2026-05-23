@@ -1,11 +1,20 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math' as math;
 import '../models/trip.dart';
+import 'rating_service.dart';
 
 class TripService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final RatingService _ratingService = RatingService();
   final CollectionReference tripsCollection =
   FirebaseFirestore.instance.collection('trips');
+
+  DateTime? _parseDate(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is String) return DateTime.tryParse(value);
+    if (value is DateTime) return value;
+    return null;
+  }
 
   /// Створення нової поїздки
   Future<void> createTrip(Trip trip) async {
@@ -233,17 +242,59 @@ class TripService {
         'passengerSegments.$userId': FieldValue.delete(),
       });
     });
+
+    try {
+      await _ratingService.applyCancellationPenalty(
+        userId: userId,
+        points: 0.15,
+        reason: 'passenger_cancelled_booking_direct',
+        tripId: tripId,
+      );
+    } catch (_) {
+      // Keep cancellation successful even if rating write fails.
+    }
   }
 
   Future<void> cancelTrip({
     required String tripId,
     required String cancelledBy,
   }) async {
-    await _firestore.collection('trips').doc(tripId).update({
+    final tripRef = _firestore.collection('trips').doc(tripId);
+    final tripSnap = await tripRef.get();
+    final data = tripSnap.data() ?? <String, dynamic>{};
+    final driverId = data['driverId'] as String? ?? '';
+    final departure = _parseDate(data['departureTime']);
+
+    await tripRef.update({
       'status': 'cancelled',
       'cancelledBy': cancelledBy,
       'cancelledAt': DateTime.now(),
     });
+
+    if (cancelledBy != driverId || cancelledBy.trim().isEmpty) {
+      return;
+    }
+
+    double penalty = 0.30;
+    if (departure != null) {
+      final hoursBefore = departure.difference(DateTime.now()).inMinutes / 60.0;
+      if (hoursBefore < 6) {
+        penalty = 0.50;
+      } else if (hoursBefore < 24) {
+        penalty = 0.40;
+      }
+    }
+
+    try {
+      await _ratingService.applyCancellationPenalty(
+        userId: cancelledBy,
+        points: penalty,
+        reason: 'driver_cancelled_trip',
+        tripId: tripId,
+      );
+    } catch (_) {
+      // Keep trip cancellation successful even if rating write fails.
+    }
   }
 
   /// Додати пасажира до поїздки

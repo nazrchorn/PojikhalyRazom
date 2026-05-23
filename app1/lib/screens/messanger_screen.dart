@@ -4,7 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../models/trip.dart';
+import '../models/booking_request.dart';
 import '../services/chat_service.dart';
+import '../services/booking_service.dart';
 import '../services/trip_service.dart';
 import 'driver_booking_request_screen.dart';
 import 'public_profile_screen.dart';
@@ -295,6 +297,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
   final ScrollController _scrollController = ScrollController();
   final ChatService _chatService = ChatService();
   final TripService _tripService = TripService();
+  final BookingService _bookingService = BookingService();
   final ImagePicker _picker = ImagePicker();
 
   // Non-null when user is editing an existing message
@@ -529,6 +532,43 @@ class _ConversationScreenState extends State<ConversationScreen> {
         builder: (_) => DriverBookingRequestScreen(requestId: requestId),
       ),
     );
+  }
+
+  Future<({bool actionable, String label})> _resolveBookingActionState(String requestId) async {
+    if (requestId.trim().isEmpty) {
+      return (actionable: false, label: 'Запит бронювання недоступний');
+    }
+
+    try {
+      final BookingRequest? request = await _bookingService.getRequestById(requestId);
+      if (request == null) {
+        return (actionable: false, label: 'Запит вже недоступний');
+      }
+
+      if (!request.isPending) {
+        return (actionable: false, label: 'Запит вже оброблено');
+      }
+
+      final bool isDriver = widget.currentUserId == request.driverId;
+      final bool isPassenger = widget.currentUserId == request.passengerId;
+      if (isDriver) {
+        return (actionable: true, label: 'Відкрити запит на бронювання');
+      }
+
+      if (isPassenger) {
+        final bool passengerNeedsToReviewUpdate =
+            request.updatedByDriverAt != null &&
+            (request.passengerAcknowledgedAt == null ||
+                request.passengerAcknowledgedAt!.isBefore(request.updatedByDriverAt!));
+        if (passengerNeedsToReviewUpdate) {
+          return (actionable: true, label: 'Підтвердити оновлену точку');
+        }
+      }
+
+      return (actionable: false, label: 'Очікуйте рішення водія');
+    } catch (_) {
+      return (actionable: false, label: 'Не вдалося перевірити статус запиту');
+    }
   }
 
   Future<void> _openPartnerProfile() async {
@@ -866,103 +906,150 @@ class _ConversationScreenState extends State<ConversationScreen> {
                               ],
                               if (isSystemChat) ...[
                                 const SizedBox(height: 8),
-                                InkWell(
-                                  onTap: () {
-                                    if (hasBookingAction && bookingRequestId.isNotEmpty) {
-                                      _openBookingRequestFromMessage(bookingRequestId);
-                                      return;
-                                    }
-                                    _openTripFromMessage(tripId);
-                                  },
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                                    decoration: BoxDecoration(
-                                      color: isMine
-                                          ? Colors.white.withValues(alpha: 0.14)
-                                           : Theme.of(context).colorScheme.secondaryContainer,
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
+                                if (hasBookingAction && bookingRequestId.isNotEmpty)
+                                  FutureBuilder<({bool actionable, String label})>(
+                                    future: _resolveBookingActionState(bookingRequestId),
+                                    builder: (context, actionSnapshot) {
+                                      final actionState =
+                                          actionSnapshot.data ?? (actionable: false, label: 'Перевірка запиту...');
+                                      final bool actionable = actionState.actionable;
+
+                                      return InkWell(
+                                        onTap: actionable
+                                            ? () => _openBookingRequestFromMessage(bookingRequestId)
+                                            : null,
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: Opacity(
+                                          opacity: actionable ? 1 : 0.72,
+                                          child: Container(
+                                            width: double.infinity,
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                                            decoration: BoxDecoration(
+                                              color: isMine
+                                                  ? Colors.white.withValues(alpha: 0.14)
+                                                  : Theme.of(context).colorScheme.secondaryContainer,
+                                              borderRadius: BorderRadius.circular(10),
+                                              border: Border.all(
+                                                color: isMine
+                                                    ? Colors.white.withValues(alpha: 0.24)
+                                                    : Theme.of(context).dividerColor,
+                                              ),
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  actionable ? Icons.route_rounded : Icons.check_circle_outline,
+                                                  size: 16,
+                                                  color: isMine
+                                                      ? Colors.white
+                                                      : Theme.of(context).colorScheme.primary,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    actionState.label,
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: isMine
+                                                          ? Colors.white
+                                                          : Theme.of(context).colorScheme.onSurface,
+                                                    ),
+                                                  ),
+                                                ),
+                                                Icon(
+                                                  actionable
+                                                      ? Icons.open_in_new_rounded
+                                                      : Icons.lock_outline_rounded,
+                                                  size: 15,
+                                                  color: isMine
+                                                      ? Colors.white70
+                                                      : Theme.of(context).colorScheme.primary,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  )
+                                else
+                                  InkWell(
+                                    onTap: () => _openTripFromMessage(tripId),
+                                    borderRadius: BorderRadius.circular(10),
+                                    child: Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                                      decoration: BoxDecoration(
                                         color: isMine
-                                            ? Colors.white.withValues(alpha: 0.24)
-                                             : Theme.of(context).dividerColor,
+                                            ? Colors.white.withValues(alpha: 0.14)
+                                            : Theme.of(context).colorScheme.secondaryContainer,
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: isMine
+                                              ? Colors.white.withValues(alpha: 0.24)
+                                              : Theme.of(context).dividerColor,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.route_rounded,
+                                            size: 16,
+                                            color: isMine
+                                                ? Colors.white
+                                                : Theme.of(context).colorScheme.primary,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: tripId.isEmpty
+                                                ? Text(
+                                                    'Поїздка не вказана',
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: isMine
+                                                          ? Colors.white
+                                                          : Theme.of(context).colorScheme.onSurface,
+                                                    ),
+                                                  )
+                                                : FutureBuilder<Trip?>(
+                                                    future: _tripService.getTripById(tripId),
+                                                    builder: (context, tripSnapshot) {
+                                                      final trip = tripSnapshot.data;
+                                                      final text = trip == null
+                                                          ? 'Поїздка: $tripId'
+                                                          : _formatTripBadgeText(trip);
+                                                      return Text(
+                                                        text,
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                        style: TextStyle(
+                                                          fontSize: 12,
+                                                          fontWeight: FontWeight.w600,
+                                                          color: isMine
+                                                              ? Colors.white
+                                                              : Theme.of(context).colorScheme.onSurface,
+                                                        ),
+                                                      );
+                                                    },
+                                                  ),
+                                          ),
+                                          Icon(
+                                            Icons.open_in_new_rounded,
+                                            size: 15,
+                                            color: isMine
+                                                ? Colors.white70
+                                                : Theme.of(context).colorScheme.primary,
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.route_rounded,
-                                          size: 16,
-                                           color: isMine
-                                               ? Colors.white
-                                               : Theme.of(context).colorScheme.primary,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: hasBookingAction
-                                              ? Text(
-                                                  bookingRequestId.isEmpty
-                                                      ? 'Переглянути запит бронювання'
-                                                      : 'Відкрити запит на бронювання',
-                                                  maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: isMine
-                                                        ? Colors.white
-                                                        : Theme.of(context).colorScheme.onSurface,
-                                                  ),
-                                                )
-                                              : tripId.isEmpty
-                                              ? Text(
-                                                  'Поїздка не вказана',
-                                                  maxLines: 1,
-                                                  overflow: TextOverflow.ellipsis,
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: isMine
-                                                        ? Colors.white
-                                                        : Theme.of(context).colorScheme.onSurface,
-                                                  ),
-                                                )
-                                              : FutureBuilder<Trip?>(
-                                                  future: _tripService.getTripById(tripId),
-                                                  builder: (context, tripSnapshot) {
-                                                    final trip = tripSnapshot.data;
-                                                    final text = trip == null
-                                                        ? 'Поїздка: $tripId'
-                                                        : _formatTripBadgeText(trip);
-                                                    return Text(
-                                                      text,
-                                                      maxLines: 1,
-                                                      overflow: TextOverflow.ellipsis,
-                                                      style: TextStyle(
-                                                        fontSize: 12,
-                                                        fontWeight: FontWeight.w600,
-                                                        color: isMine
-                                                            ? Colors.white
-                                                            : Theme.of(context)
-                                                                .colorScheme
-                                                                .onSurface,
-                                                      ),
-                                                    );
-                                                  },
-                                                ),
-                                        ),
-                                        Icon(
-                                          Icons.open_in_new_rounded,
-                                          size: 15,
-                                          color: isMine
-                                              ? Colors.white70
-                                              : Theme.of(context).colorScheme.primary,
-                                        ),
-                                      ],
-                                    ),
                                   ),
-                                ),
                               ],
                               // Прийняття/відхилення виконується на екрані поїздки.
                             ],

@@ -42,6 +42,7 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
   bool allowChildren = false;
   bool allowPets = false;
   bool womenOnly = false;
+  bool allowMobilization = false;
   bool isTalkative = false;
   String musicType = "headphones";
   bool isSmoker = false;
@@ -80,13 +81,19 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
     }
   }
 
+  bool _isFemaleDriver() {
+    final value = (driverGender ?? '').trim().toLowerCase();
+    if (value.isEmpty) return false;
+    return value.contains('жін') || value.contains('female') || value == 'f';
+  }
+
   void _calculateFairPrice() {
     double distanceKm = (widget.selectedRoute['distance'] ?? 0) / 1000;
     double consumption = 9.5;
     double totalTripFuelCost = (distanceKm * consumption / 100) * fuelPrice;
 
     // Стабільне ділення на 3 пасажирські місця
-    double recommended = totalTripFuelCost / 3;
+    double recommended = totalTripFuelCost / 4;
     double roundedPrice = (recommended / 5).round() * 5.0;
 
     setState(() {
@@ -148,6 +155,7 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
       allowChildren: allowChildren,
       allowPets: allowPets,
       womenOnly: womenOnly,
+      allowMobilization: allowMobilization,
       estimatedDurationMinutes: estimatedDurationMinutes,
     );
 
@@ -275,7 +283,11 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold,
                             color: (price <= baseRecommendedPrice + 150) ? Colors.black : _primaryTeal),
-                        decoration: const InputDecoration(suffixText: "грн"),
+                        decoration: const InputDecoration(
+                          suffixText: "грн",
+                          isDense: true,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                        ),
                         onChanged: (val) => setState(() => price = double.tryParse(val) ?? 0),
                       ),
                     ),
@@ -292,12 +304,35 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
             padding: EdgeInsets.zero,
             child: Column(
               children: [
-                // 1. Тільки жінки (якщо водій жінка)
-                _buildSwitchTile(
-                    womenOnly ? "Тільки жінки" : "Для всіх пасажирів",
-                    FontAwesomeIcons.venus,
-                    womenOnly,
-                        (v) => setState(() => womenOnly = v)
+                // 1. Тільки жінки (лише якщо водій жінка)
+                Builder(builder: (context) {
+                  final isWoman = _isFemaleDriver();
+                  return Opacity(
+                    opacity: isWoman ? 1.0 : 0.4,
+                    child: SwitchListTile(
+                      activeThumbColor: _primaryTeal,
+                      secondary: _buildIconCircle(FontAwesomeIcons.venus, womenOnly),
+                      title: const Text("Тільки жінки"),
+                      subtitle: isWoman ? null : const Text("Доступно лише водіям-жінкам", style: TextStyle(fontSize: 11)),
+                      value: womenOnly,
+                      onChanged: isWoman ? (v) => setState(() => womenOnly = v) : null,
+                    ),
+                  );
+                }),
+
+                // 2. Перевезення жінок та пенсіонерів (мобілізаційний фільтр)
+                SwitchListTile(
+                  activeThumbColor: _primaryTeal,
+                  secondary: _buildIconCircle(Icons.shield_outlined, allowMobilization),
+                  title: const Text("Жінки і пенсіонери"),
+                  subtitle: Text(
+                    allowMobilization
+                        ? "Водій не перевозить чоловіків призовного віку"
+                        : "Водій перевозить усіх пасажирів",
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  value: allowMobilization,
+                  onChanged: (v) => setState(() => allowMobilization = v),
                 ),
 
                 // 2. Діти

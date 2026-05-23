@@ -35,6 +35,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
   bool _reviewPromptInProgress = false;
   bool _reviewPromptPrefsLoaded = false;
   bool _reviewPromptDismissedForever = false;
+  final Set<String> _optimisticallyHiddenTripIds = <String>{};
 
   final Color primaryTurquoise = const Color(0xFF1F6F66);
 
@@ -329,50 +330,17 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
     return (price: trip.pricePerSeat, discounted: false);
   }
 
-  Future<void> _confirmRequest(BookingRequest request) async {
-    final driverData = await _userService.loadUserData(request.driverId);
-    final driverName = driverData?['name'] as String? ?? 'Водiй';
-    if (!mounted) return;
-
-    try {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const Center(child: CircularProgressIndicator()),
-      );
-      await _bookingService.confirmBookingRequest(requestId: request.id, driverName: driverName);
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Запит пiдтверджено')),
-        );
-      }
-    } catch (_) {
-      if (mounted) Navigator.pop(context);
+  bool _isWaitingPassengerConsent(BookingRequest request) {
+    if (request.status != 'pending' || request.updatedByDriverAt == null) {
+      return false;
     }
-  }
 
-  Future<void> _rejectRequest(BookingRequest request) async {
-    final driverData = await _userService.loadUserData(request.driverId);
-    final driverName = driverData?['name'] as String? ?? 'Водiй';
-    if (!mounted) return;
-
-    try {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const Center(child: CircularProgressIndicator()),
-      );
-      await _bookingService.rejectBookingRequest(requestId: request.id, driverName: driverName);
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Запит вiдхилено')),
-        );
-      }
-    } catch (_) {
-      if (mounted) Navigator.pop(context);
+    final acknowledgedAt = request.passengerAcknowledgedAt;
+    if (acknowledgedAt == null) {
+      return true;
     }
+
+    return acknowledgedAt.isBefore(request.updatedByDriverAt!);
   }
 
   Future<void> _openDriverRequestsSheet(
@@ -463,6 +431,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
                                           toCity: request.toCity,
                                         );
                                   final requestedPrice = request.requestedPrice ?? computedPrice;
+                                  final waitingPassengerConsent = _isWaitingPassengerConsent(request);
 
                                   return InkWell(
                                     borderRadius: BorderRadius.circular(14),
@@ -482,17 +451,35 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
                                         border: Border.all(color: primaryTurquoise.withValues(alpha: 0.25)),
                                       ),
                                       child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                         Text(passengerName, style: const TextStyle(fontWeight: FontWeight.w700)),
-                                         const SizedBox(height: 4),
-                                         Text(
-                                           routeText,
-                                           style: TextStyle(
-                                             color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                                ],
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(passengerName, style: const TextStyle(fontWeight: FontWeight.w700)),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            routeText,
+                                            style: TextStyle(
+                                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                            ),
+                                          ),
+                                          if (waitingPassengerConsent) ...[
+                                            const SizedBox(height: 6),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFFFF8E1),
+                                                borderRadius: BorderRadius.circular(999),
+                                                border: Border.all(color: Colors.amber.shade400),
                                               ),
-                                         ),
+                                              child: Text(
+                                                'Очікує згоду пасажира на нову точку',
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: Colors.amber.shade900,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                          if (request.pickupAddress != null) ...[
                                            const SizedBox(height: 4),
                                             InkWell(
@@ -607,7 +594,7 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
                                               );
                                             },
                                             icon: const Icon(Icons.map_outlined, size: 16),
-                                            label: const Text('Карта та прийняття запиту'),
+                                            label: const Text('Відкрити запит для підтвердження'),
                                             style: OutlinedButton.styleFrom(
                                               foregroundColor: primaryTurquoise,
                                               side: BorderSide(color: primaryTurquoise.withValues(alpha: 0.45)),
@@ -621,36 +608,10 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
                                             style: TextStyle(color: primaryTurquoise, fontWeight: FontWeight.w700),
                                           ),
                                         ],
-                                        const SizedBox(height: 10),
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: ElevatedButton(
-                                                onPressed: () => _confirmRequest(request),
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: primaryTurquoise,
-                                                  minimumSize: const Size.fromHeight(40),
-                                                ),
-                                                child: const Text('Пiдтвердити', style: TextStyle(color: Colors.white)),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Expanded(
-                                              child: OutlinedButton(
-                                                onPressed: () => _rejectRequest(request),
-                                                style: OutlinedButton.styleFrom(
-                                                  foregroundColor: Colors.red,
-                                                  side: const BorderSide(color: Colors.red),
-                                                  minimumSize: const Size.fromHeight(40),
-                                                ),
-                                                child: const Text('Вiдхилити'),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
                                       ],
                                     ),
-                                  );
+                                  ),
+                                );
                                 },
                               );
                             },
@@ -748,7 +709,13 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
           }
 
           final now = DateTime.now();
-          final List<Trip> allTrips = snapshot.data!;
+          final List<Trip> allTrips = (snapshot.data ?? const <Trip>[])
+              .where((trip) => !_optimisticallyHiddenTripIds.contains(trip.id))
+              .toList();
+
+          // Once backend stream no longer returns a hidden trip, clear stale ids from local cache.
+          final liveTripIds = (snapshot.data ?? const <Trip>[]).map((t) => t.id).toSet();
+          _optimisticallyHiddenTripIds.removeWhere((id) => !liveTripIds.contains(id));
 
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
@@ -907,13 +874,20 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
               ),
             ),
             trailing: const Icon(Icons.chevron_right_rounded, color: Colors.grey),
-            onTap: () {
-              Navigator.push(
+            onTap: () async {
+              final result = await Navigator.push<bool>(
                 context,
                 MaterialPageRoute(
                   builder: (_) => TripDetailScreen(trip: tripObject),
                 ),
               );
+
+              if (!mounted) return;
+              if (result == true && tripObject.driverId != currentUserId) {
+                setState(() {
+                  _optimisticallyHiddenTripIds.add(tripObject.id);
+                });
+              }
             },
           ),
           if (isDriver && status == 'active')
@@ -924,6 +898,8 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
                 if (pending.isEmpty) {
                   return const SizedBox.shrink();
                 }
+                final waitingPassengerCount =
+                    pending.where(_isWaitingPassengerConsent).length;
 
                 return InkWell(
                   onTap: () {
@@ -948,7 +924,9 @@ class _MyTripsScreenState extends State<MyTripsScreen> with TickerProviderStateM
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Запити на бронювання: ${pending.length}. Натисніть, щоб підтвердити.',
+                            waitingPassengerCount > 0
+                                ? 'Запити: ${pending.length}. Очікує згоду пасажира: $waitingPassengerCount.'
+                                : 'Запити на бронювання: ${pending.length}. Натисніть, щоб підтвердити.',
                             style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600),
                           ),
                         ),

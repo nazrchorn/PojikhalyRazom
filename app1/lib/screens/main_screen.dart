@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/chat_service.dart';
@@ -19,6 +20,7 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   late int _selectedIndex;
   final ChatService _chatService = ChatService();
+  StreamSubscription<User?>? _authSubscription;
 
   @override
   void initState() {
@@ -26,6 +28,16 @@ class _MainScreenState extends State<MainScreen> {
     _selectedIndex = widget.initialIndex != 0
         ? widget.initialIndex
         : MainScreen.lastSelectedIndex;
+    _authSubscription = FirebaseAuth.instance.authStateChanges().listen((_) {
+      if (!mounted) return;
+      setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
   }
 
   // Створюємо список екранів через метод, щоб отримати актуальний UID

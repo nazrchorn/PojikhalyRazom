@@ -17,6 +17,7 @@ class Trip {
   final bool allowChildren;
   final bool allowPets;
   final bool womenOnly;
+  final bool allowMobilization; // true = перевозить лише жінок та пенсіонерів (без чоловіків призовного віку)
   final String? cancelledBy; // хто скасував поїздку (driverId або passengerId)
   final String? cancellationReason; // причина скасування
   final DateTime? cancelledAt; // коли скасована
@@ -40,6 +41,7 @@ class Trip {
     this.allowChildren = false,
     this.allowPets = false,
     this.womenOnly = false,
+    this.allowMobilization = false,
     this.cancelledBy,
     this.cancellationReason,
     this.cancelledAt,
@@ -84,6 +86,7 @@ class Trip {
       'allowChildren': allowChildren,
       'allowPets': allowPets,
       'womenOnly': womenOnly,
+      'allowMobilization': allowMobilization,
       'status': status,
       'cancelledBy': cancelledBy,
       'cancellationReason': cancellationReason,
@@ -123,6 +126,7 @@ class Trip {
       allowChildren: map['allowChildren'] ?? true,
       allowPets: map['allowPets'] ?? false,
       womenOnly: map['womenOnly'] ?? false,
+      allowMobilization: map['allowMobilization'] ?? false,
       cancelledBy: map['cancelledBy'],
       cancellationReason: map['cancellationReason'],
       cancelledAt: map['cancelledAt'] != null ? parseDate(map['cancelledAt']) : null,

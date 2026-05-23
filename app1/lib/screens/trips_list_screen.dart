@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/trip.dart';
 import '../services/trip_service.dart';
+import '../services/user_service.dart';
 import 'trip_details_screen.dart';
 
 class TripsListScreen extends StatefulWidget {
@@ -23,14 +25,27 @@ class _TripsListScreenState extends State<TripsListScreen> {
   late DateTime _currentDate;
   bool _allowPets = false;
   bool _allowChildren = false;
+  bool _filterWomenOnly = false;
 
+  String? _passengerGender; // loaded from profile
   final Color primaryTurquoise = const Color(0xFF1F6F66);
   final TripService _tripService = TripService();
+  final UserService _userService = UserService();
 
   @override
   void initState() {
     super.initState();
     _currentDate = widget.selectedDate;
+    _loadPassengerGender();
+  }
+
+  Future<void> _loadPassengerGender() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final data = await _userService.loadUserData(user.uid);
+    if (mounted && data != null) {
+      setState(() => _passengerGender = data['gender'] as String?);
+    }
   }
 
   // Допоміжна функція для очищення назви міста (Львів, Львівська обл -> Львів)
@@ -74,6 +89,7 @@ class _TripsListScreenState extends State<TripsListScreen> {
   Widget build(BuildContext context) {
     final String cleanFrom = _cleanCityName(widget.fromCity);
     final String cleanTo = _cleanCityName(widget.toCity);
+    final String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -132,8 +148,9 @@ class _TripsListScreenState extends State<TripsListScreen> {
               children: [
                 const Text("Фільтри", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                 const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
                     _buildFilterChip("З тваринами", _allowPets, (val) {
                       setState(() => _allowPets = val);
@@ -141,6 +158,11 @@ class _TripsListScreenState extends State<TripsListScreen> {
                     _buildFilterChip("З дітьми", _allowChildren, (val) {
                       setState(() => _allowChildren = val);
                     }),
+                    // Фільтр "Тільки жінки" — показувати лише пасажирам-жінкам
+                    if (_passengerGender == 'Жінка' || _passengerGender == 'жінка')
+                      _buildFilterChip("🌸 Тільки жінки", _filterWomenOnly, (val) {
+                        setState(() => _filterWomenOnly = val);
+                      }),
                   ],
                 ),
               ],
@@ -200,6 +222,12 @@ class _TripsListScreenState extends State<TripsListScreen> {
                    // Фільтрація по параметрам
                    if (_allowPets && !trip.allowPets) return false;
                    if (_allowChildren && !trip.allowChildren) return false;
+                   if (_filterWomenOnly && !trip.womenOnly) return false;
+
+                   // Приховати поїздки "тільки жінки" від чоловіків
+                   final bool passengerIsMale = _passengerGender != null &&
+                       _passengerGender != 'Жінка' && _passengerGender != 'жінка';
+                   if (trip.womenOnly && passengerIsMale) return false;
 
                    return true;
                  }).toList();
@@ -215,6 +243,10 @@ class _TripsListScreenState extends State<TripsListScreen> {
                     final trip = filteredTrips[index];
                     final segmentPrice = _calculateSegmentPrice(trip);
                     final hasDiscount = segmentPrice < trip.pricePerSeat;
+                    final isMyTrip = currentUserId.isNotEmpty && trip.driverId == currentUserId;
+                    final isDark = Theme.of(context).brightness == Brightness.dark;
+                    final myBadgeBg = isDark ? const Color(0xFF1E3A34) : Colors.green.shade50;
+                    final myBadgeText = isDark ? const Color(0xFF9EE7D4) : Colors.green;
 
                     return InkWell(
                       onTap: () {
@@ -328,17 +360,37 @@ class _TripsListScreenState extends State<TripsListScreen> {
                                     ),
                                   ],
                                 ),
-                                if (trip.womenOnly)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(color: Colors.pink.shade50, borderRadius: BorderRadius.circular(8)),
-                                    child: const Row(
-                                      children: [
-                                        Text("🌸 ", style: TextStyle(fontSize: 12)),
-                                        Text("Тільки жінки", style: TextStyle(color: Colors.pink, fontSize: 11, fontWeight: FontWeight.bold)),
-                                      ],
-                                    ),
-                                  ),
+                                 if (trip.womenOnly)
+                                   Container(
+                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                     decoration: BoxDecoration(color: Colors.pink.shade50, borderRadius: BorderRadius.circular(8)),
+                                     child: const Row(
+                                       children: [
+                                         Text("🌸 ", style: TextStyle(fontSize: 12)),
+                                         Text("Тільки жінки", style: TextStyle(color: Colors.pink, fontSize: 11, fontWeight: FontWeight.bold)),
+                                       ],
+                                     ),
+                                   ),
+                                 if (trip.allowMobilization)
+                                   Container(
+                                     margin: const EdgeInsets.only(left: 6),
+                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                     decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
+                                      child: const Text(
+                                        "Жінки і пенсіонери",
+                                        style: TextStyle(color: Colors.blueAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                                     ),
+                                   ),
+                                 if (isMyTrip)
+                                   Container(
+                                     margin: const EdgeInsets.only(left: 6),
+                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                     decoration: BoxDecoration(color: myBadgeBg, borderRadius: BorderRadius.circular(8)),
+                                     child: Text(
+                                       "Це ви",
+                                       style: TextStyle(color: myBadgeText, fontSize: 11, fontWeight: FontWeight.bold),
+                                     ),
+                                   ),
                               ],
                             ),
                           ],
